@@ -2,6 +2,7 @@ import './styles.css';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
 import { createShell } from './shell';
+import { renderInterview } from './views/interview';
 
 // Placeholder views — will be replaced in later subphases
 function renderDashboard(container: HTMLElement): void {
@@ -19,7 +20,7 @@ function renderDashboard(container: HTMLElement): void {
         <p class="empty-state__description">Start your first interview session to begin building your improvement profile.</p>
         <button class="btn btn--primary" style="margin-top: var(--space-4)" onclick="window.location.hash='#/session'">
           <i data-lucide="plus"></i>
-          <span>Start First Session</span>
+          <span>Configure Session</span>
         </button>
       </div>
     </div>
@@ -40,6 +41,10 @@ function renderSession(container: HTMLElement): void {
         </div>
         <h3 class="empty-state__title">Session setup</h3>
         <p class="empty-state__description">Role selection, difficulty, and focus area configuration will appear here.</p>
+        <button class="btn btn--accent" style="margin-top: var(--space-4)" onclick="window.location.hash='#/interview'">
+          <i data-lucide="play"></i>
+          <span>Start Interview</span>
+        </button>
       </div>
     </div>
   `;
@@ -91,6 +96,7 @@ if (app) {
 
   registerRoute('/', renderDashboard);
   registerRoute('/session', renderSession);
+  registerRoute('/interview', renderInterview);
   registerRoute('/history', renderHistory);
   registerRoute('/settings', renderSettings);
 
