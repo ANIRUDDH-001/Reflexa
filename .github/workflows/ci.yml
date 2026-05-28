@@ -15,12 +15,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build
-        run: npm run build
+          cache: 'pnpm'
+      - name: Enable Corepack and prepare pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@8.6.0 --activate
+      - name: Install dependencies (pnpm)
+        run: pnpm install --frozen-lockfile
+      - name: Build shared first
+        run: pnpm --filter @reflexa/shared build
+      - name: Typecheck (root project refs)
+        run: pnpm -w -r run typecheck
+      - name: Lint (root)
+        run: pnpm -w run lint
+      - name: Build all packages
+        run: pnpm -w -r run build

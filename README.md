@@ -15,16 +15,16 @@ Reflexa is an intelligent platform designed to help engineers prepare for techni
 
 ## Getting started (local, Phase 0)
 
-1. Install dependencies at the repo root (npm, yarn, or pnpm workspaces supported):
+1. Install dependencies at the repo root (pnpm recommended):
 
 ```powershell
-npm install
+pnpm install
 ```
 
 2. Run dev (starts backend and frontend concurrently):
 
 ```powershell
-npm run dev
+pnpm run dev
 ```
 
 ## Env templates
@@ -37,7 +37,7 @@ npm run dev
 This Phase 0 scaffold provides a working foundation: shared typed schemas, API contracts, linting and formatting configs, and minimal frontend/backend wiring. From here we can:
 
 - Expand the shared schemas and freeze the contract.
-- Add CI for lint/typecheck.
+- CI now supports `pnpm` and runs builds with workspace-aware commands. See `.github/workflows/ci.yml`.
 - Add authentication and persistence for sessions.
 
 ## License
