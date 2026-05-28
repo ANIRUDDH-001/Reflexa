@@ -95,9 +95,9 @@ export function renderSession(container: HTMLElement): void {
     `;
 
     const progressContainer = document.createElement('div');
-    progressContainer.className = 'w-full bg-gray-200 rounded-full h-2 mb-6 mt-4';
+    progressContainer.className = 'wizard-progress';
     const progressBar = document.createElement('div');
-    progressBar.className = 'bg-accent-600 h-2 rounded-full transition-all duration-300';
+    progressBar.className = 'wizard-progress__bar';
     progressBar.style.width = `${(currentStep / totalSteps) * 100}%`;
     progressContainer.appendChild(progressBar);
 
@@ -179,24 +179,26 @@ function renderSelectableCard(
   onClick: () => void,
 ): HTMLElement {
   const card = document.createElement('div');
-  card.className = `p-4 rounded-lg border-2 cursor-pointer transition-all flex flex-col gap-2 ${
-    isSelected ? 'border-accent-500 bg-accent-50' : 'border-gray-200 hover:border-accent-300'
-  }`;
+  card.className = `selectable-card ${isSelected ? 'selectable-card--selected' : ''}`;
   card.onclick = onClick;
 
-  card.innerHTML = `
-    <div class="flex items-center gap-3">
-      ${
-        icon
-          ? `<i data-lucide="${icon}" class="${
-              isSelected ? 'text-accent-600' : 'text-gray-500'
-            }"></i>`
-          : ''
-      }
-      <span class="font-medium ${isSelected ? 'text-accent-900' : 'text-gray-900'}">${title}</span>
-    </div>
-    ${desc ? `<span class="text-sm text-gray-500 pl-${icon ? '8' : '0'}">${desc}</span>` : ''}
-  `;
+  const header = document.createElement('div');
+  header.className = 'selectable-card__header';
+
+  if (icon) {
+    header.innerHTML += `<i data-lucide="${icon}" class="selectable-card__icon"></i>`;
+  }
+  header.innerHTML += `<span class="selectable-card__title">${title}</span>`;
+
+  card.appendChild(header);
+
+  if (desc) {
+    const descEl = document.createElement('div');
+    descEl.className = `selectable-card__desc ${icon ? 'selectable-card__desc--indent' : ''}`;
+    descEl.textContent = desc;
+    card.appendChild(descEl);
+  }
+
   return card;
 }
 
@@ -208,7 +210,7 @@ function renderStep1(reRender: () => void): HTMLElement {
   const roleSection = document.createElement('div');
   roleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select your target role</p>`;
   const roleGrid = document.createElement('div');
-  roleGrid.className = 'grid gap-3 grid-cols-2 md:grid-cols-3 mb-6';
+  roleGrid.className = 'wizard-grid wizard-grid--3col';
 
   ROLE_OPTIONS.forEach((opt) => {
     roleGrid.appendChild(
@@ -223,7 +225,7 @@ function renderStep1(reRender: () => void): HTMLElement {
   const diffSection = document.createElement('div');
   diffSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select experience level</p>`;
   const diffGrid = document.createElement('div');
-  diffGrid.className = 'grid gap-3 grid-cols-2';
+  diffGrid.className = 'wizard-grid wizard-grid--2col';
 
   DIFFICULTY_OPTIONS.forEach((opt) => {
     diffGrid.appendChild(
@@ -248,7 +250,7 @@ function renderStep2(reRender: () => void): HTMLElement {
   const styleSection = document.createElement('div');
   styleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select interview format</p>`;
   const styleGrid = document.createElement('div');
-  styleGrid.className = 'grid gap-3 grid-cols-1 md:grid-cols-2 mb-6';
+  styleGrid.className = 'wizard-grid wizard-grid--2col';
 
   STYLE_OPTIONS.forEach((opt) => {
     styleGrid.appendChild(
@@ -263,7 +265,7 @@ function renderStep2(reRender: () => void): HTMLElement {
   const timeSection = document.createElement('div');
   timeSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Time limit</p>`;
   const timeGrid = document.createElement('div');
-  timeGrid.className = 'grid gap-3 grid-cols-2 md:grid-cols-4';
+  timeGrid.className = 'wizard-grid wizard-grid--4col';
 
   TIME_OPTIONS.forEach((opt) => {
     timeGrid.appendChild(
@@ -289,16 +291,12 @@ function renderStep3(reRender: () => void): HTMLElement {
   `;
 
   const focusGrid = document.createElement('div');
-  focusGrid.className = 'flex flex-wrap gap-3';
+  focusGrid.className = 'focus-chip-container';
 
   FOCUS_OPTIONS.forEach((opt) => {
     const isSelected = config.focusAreas.includes(opt);
     const chip = document.createElement('button');
-    chip.className = `px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-      isSelected
-        ? 'bg-accent-600 text-white border-accent-600'
-        : 'bg-white text-gray-700 border-gray-300 hover:border-accent-400'
-    }`;
+    chip.className = `focus-chip ${isSelected ? 'focus-chip--selected' : ''}`;
     chip.textContent = opt;
     chip.onclick = () => {
       if (isSelected) {
