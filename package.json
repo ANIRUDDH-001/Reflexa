@@ -6,8 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm:dev:root",
-    "dev:root": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev": "npm run dev:root",
+    "dev:root": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm --prefix packages/backend run dev",
     "dev:frontend": "npm --prefix packages/frontend run dev",
     "build": "npm run build --workspaces",
