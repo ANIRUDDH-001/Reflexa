@@ -1,31 +1,45 @@
-Reflexa — Self-Improving Technical Interview Intelligence
-=========================================================
+# Reflexa — Self-Improving Technical Interview Intelligence
 
 Tagline: Reflexa — Self-Improving Technical Interview Intelligence
 
-Overview
---------
+## Overview
+
 Reflexa is an intelligent platform designed to help engineers prepare for technical interviews by continuously learning from interactions and improving its feedback and question generation. Reflexa combines automated interview simulations, adaptive feedback loops, and analytics to help users grow stronger, faster.
 
-Key Features
-------------
-- Self-Improving: Reflexa learns from each mock interview to provide better, personalized guidance.
-- Technical Interview Focus: Questions, feedback, and metrics centered on coding interviews, system design, and behavioral responses.
-- Adaptive Difficulty: Reflexa adjusts question difficulty based on performance and learning goals.
-- Analytics & Insights: Tracks progress over time and surfaces strengths and weaknesses.
+## Project layout (Phase 0)
 
-Quick Start
------------
-1. Clone the repo:
+- `packages/shared` — Zod schemas and shared TypeScript types (single source-of-truth for contracts).
+- `packages/backend` — Minimal Express + TypeScript backend with a `/health` endpoint.
+- `packages/frontend` — Minimal Vite-fed landing page that pings the backend health endpoint.
+- `docs/CONTRACTS.md` — Human-readable summary of API contracts.
 
-   git clone https://github.com/ANIRUDDH-001/Reflexa.git
+## Getting started (local, Phase 0)
 
-2. Explore the code and docs. Reflexa — Self-Improving Technical Interview Intelligence is organized to make it easy to extend the question sets and feedback models.
+1. Install dependencies at the repo root (npm, yarn, or pnpm workspaces supported):
 
-Contributing
-------------
-Contributions are welcome. When contributing to Reflexa — Self-Improving Technical Interview Intelligence, please follow the repo guidelines and open issues or PRs for larger changes.
+```powershell
+npm install
+```
 
-License
--------
+2. Run dev (starts backend and frontend concurrently):
+
+```powershell
+npm run dev
+```
+
+## Env templates
+
+- `packages/backend/.env.example`
+- `packages/frontend/.env.example`
+
+## Next steps
+
+This Phase 0 scaffold provides a working foundation: shared typed schemas, API contracts, linting and formatting configs, and minimal frontend/backend wiring. From here we can:
+
+- Expand the shared schemas and freeze the contract.
+- Add CI for lint/typecheck.
+- Add authentication and persistence for sessions.
+
+## License
+
 Specify your license here.

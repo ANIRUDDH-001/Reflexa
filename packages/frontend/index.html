@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reflexa — Self-Improving Technical Interview Intelligence</title>
+  </head>
+  <body>
+    <div id="root">
+      <h1>Reflexa — Self-Improving Technical Interview Intelligence</h1>
+      <p>Welcome — the project skeleton is in place.</p>
+      <p>Backend health: <span id="health">checking...</span></p>
+    </div>
+    <script>
+      fetch('http://localhost:4000/health')
+        .then((r) => r.json())
+        .then((j) => (document.getElementById('health').textContent = JSON.stringify(j)))
+        .catch(() => (document.getElementById('health').textContent = 'unavailable'));
+    </script>
+  </body>
+</html>
