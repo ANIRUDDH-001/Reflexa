@@ -12,4 +12,5 @@ export interface BackendSessionState extends InterviewSession {
     focusAreas: string[];
   };
   turnCount: number;
+  activeStrategyRules?: string[];
 }

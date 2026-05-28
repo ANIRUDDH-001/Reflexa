@@ -22,9 +22,15 @@ export async function renderAnalysis(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let session: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let comparison: any = null;
   try {
-    const res = await api.getSession(currentSessionId);
-    session = res.session;
+    const [sessionRes, compRes] = await Promise.all([
+      api.getSession(currentSessionId),
+      api.getComparison(currentSessionId).catch(() => ({ comparison: null })),
+    ]);
+    session = sessionRes.session;
+    comparison = compRes.comparison;
   } catch (e) {
     container.innerHTML =
       '<div class="p-8 text-center text-error">Failed to load session data</div>';
@@ -45,7 +51,9 @@ export async function renderAnalysis(
 
   const roleName = session.config.role || 'Engineer';
   const styleName = session.config.style || 'Technical';
-  const timeElapsed = 'Recently'; // Could compute from startedAt/endedAt
+  const timeElapsed = session.endedAt
+    ? new Date(session.endedAt).toLocaleString()
+    : new Date(session.startedAt).toLocaleString();
 
   const renderHeader = () => {
     header.innerHTML = `
@@ -101,45 +109,64 @@ export async function renderAnalysis(
     scoreGrid.style.display = 'grid';
     scoreGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
 
+    const rubric = evaluation.rubric || { overall: evaluation.score };
     const baseScores = [
+      { label: 'Overall Quality', score: rubric.overall, key: 'overall' },
+      { label: 'Relevance', score: rubric.relevance, key: 'relevance' },
+      { label: 'Depth of Probing', score: rubric.depth, key: 'depth' },
+      { label: 'Clarity', score: rubric.clarity, key: 'clarity' },
+      { label: 'Adaptability', score: rubric.adaptability, key: 'adaptability' },
+      { label: 'Pacing', score: rubric.pacing, key: 'pacing' },
       {
-        label: 'Overall Score',
-        score: evaluation.score + '%',
-        trend: '+4%',
-        trendType: 'positive',
+        label: 'Opportunities Captured',
+        score: rubric.missedOpportunities,
+        key: 'missedOpportunities',
       },
-      { label: 'Requirements', score: '95%', trend: 'Steady', trendType: 'neutral' }, // In a real app, these would come from sub-scores
-      { label: 'High-level Design', score: '85%', trend: '+10%', trendType: 'positive' },
-      { label: 'Deep Dive (Bottlenecks)', score: '60%', trend: '-5%', trendType: 'negative' },
-    ];
+    ].filter((s) => s.score !== undefined);
 
     baseScores.forEach((s) => {
+      let trendHtml = '';
+      if (isComparing && comparison && comparison.delta[s.key] !== undefined) {
+        const deltaVal = comparison.delta[s.key];
+        const trendType = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : 'neutral';
+        const trendIcon =
+          trendType === 'positive'
+            ? 'trending-up'
+            : trendType === 'negative'
+            ? 'trending-down'
+            : 'minus';
+        const trendColor =
+          trendType === 'positive'
+            ? 'text-success'
+            : trendType === 'negative'
+            ? 'text-error'
+            : 'text-gray-500';
+        trendHtml = `
+          <div class="text-sm font-medium ${trendColor} mb-1 flex items-center gap-1">
+            <i data-lucide="${trendIcon}" style="width: 14px; height: 14px"></i>
+            ${deltaVal > 0 ? '+' : ''}${deltaVal}%
+          </div>
+        `;
+      }
+
       const cardContent = document.createElement('div');
       cardContent.className = 'score-card p-4 rounded-lg border bg-white';
       cardContent.innerHTML = `
         <div class="text-sm text-gray-500 mb-1">${s.label}</div>
         <div class="flex items-end gap-3">
-          <div class="text-3xl font-bold">${s.score}</div>
-          <div class="text-sm font-medium ${
-            s.trendType === 'positive'
-              ? 'text-success'
-              : s.trendType === 'negative'
-              ? 'text-error'
-              : 'text-gray-500'
-          } mb-1 flex items-center gap-1">
-            ${
-              s.trendType !== 'neutral'
-                ? '<i data-lucide="' +
-                  (s.trendType === 'positive' ? 'trending-up' : 'trending-down') +
-                  '" style="width: 14px; height: 14px"></i>'
-                : '<i data-lucide="minus" style="width: 14px; height: 14px"></i>'
-            }
-            ${s.trend}
-          </div>
+          <div class="text-3xl font-bold">${s.score}%</div>
+          ${trendHtml}
         </div>
       `;
       scoreGrid.appendChild(cardContent);
     });
+
+    if (isComparing && comparison) {
+      const compLabel = document.createElement('div');
+      compLabel.className = 'col-span-full text-sm text-gray-500 mb-2 mt-2 italic';
+      compLabel.textContent = comparison.behaviorChanges;
+      scoreGrid.appendChild(compLabel);
+    }
     scoreGridContainer.appendChild(scoreGrid);
   };
   renderScores();
@@ -172,18 +199,24 @@ export async function renderAnalysis(
     summary: string,
     explanation: string,
     traceData: string,
+    failureLabel?: string,
   ) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'accordion';
 
     const header = document.createElement('div');
-    header.className = 'accordion__header';
+    header.className = 'accordion__header flex justify-between w-full';
     header.innerHTML = `
       <div class="flex items-center gap-3">
         ${createBadge(opts).outerHTML}
         <span class="text-sm font-medium text-gray-800">${summary}</span>
       </div>
       <div class="flex items-center gap-3">
+        ${
+          failureLabel
+            ? `<span class="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">${failureLabel}</span>`
+            : ''
+        }
         <span class="text-xs text-gray-500">${turnLabel}</span>
         <i data-lucide="chevron-down" class="accordion__chevron"></i>
       </div>
@@ -226,6 +259,7 @@ export async function renderAnalysis(
       '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2">' +
         wt.traceData +
         '</div>',
+      wt.failurePatternLabel,
     );
     weakTurnsCardContent.appendChild(accordion);
   });
@@ -255,6 +289,39 @@ export async function renderAnalysis(
   rightCol.appendChild(
     createCard({ title: 'Evaluation Model Calibration', content: strategyContent }),
   );
+
+  if (session.strategyUpdate) {
+    const strat = session.strategyUpdate;
+    const introCardContent = document.createElement('div');
+    introCardContent.innerHTML = `
+      <div class="text-sm text-gray-700 space-y-4">
+        <div class="flex items-center gap-2 text-accent border-b pb-2">
+          <i data-lucide="bot"></i>
+          <span class="font-medium">Introspection Agent Report (${strat.id})</span>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-900 mb-1">What Failed</h4>
+          <p class="leading-relaxed text-gray-600">${strat.whatFailed}</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-900 mb-1">Why It Failed</h4>
+          <p class="leading-relaxed text-gray-600">${strat.whyItFailed}</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-900 mb-1">What to do next time</h4>
+          <p class="leading-relaxed text-gray-600">${strat.whatToDoNextTime}</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-gray-900 mb-1">What to avoid</h4>
+          <p class="leading-relaxed text-gray-600">${strat.whatToAvoidNextTime}</p>
+        </div>
+      </div>
+    `;
+    rightCol.insertBefore(
+      createCard({ title: 'Self-Reflection (MCP)', content: introCardContent }),
+      rightCol.firstChild,
+    );
+  }
 
   mainGrid.appendChild(leftCol);
   mainGrid.appendChild(rightCol);

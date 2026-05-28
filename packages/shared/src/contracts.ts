@@ -5,11 +5,11 @@ export const HealthResponse = z.object({ status: z.literal('ok'), ts: z.string()
 
 export const SessionConfig = z
   .object({
-    role: z.string().max(100).nullable(),
-    difficulty: z.string().max(50).nullable(),
-    style: z.string().max(50).nullable(),
-    timeLimit: z.string().max(20).nullable(),
-    focusAreas: z.array(z.string().max(100)).max(10),
+    role: z.string().max(100).nullish(),
+    difficulty: z.string().max(50).nullish(),
+    style: z.string().max(50).nullish(),
+    timeLimit: z.string().max(20).nullish(),
+    focusAreas: z.array(z.string().max(100)).max(10).optional(),
   })
   .strict();
 export type SessionConfig = z.infer<typeof SessionConfig>;
@@ -47,12 +47,14 @@ export const EndSessionResponse = z
   .object({
     status: z.literal('completed'),
     analysisSummary: z.string().optional(),
+    strategySummary: z.string().optional(),
     traceId: z.string().optional(),
   })
   .strict();
 
 export const APIContracts = {
   HealthResponse,
+  SessionConfig,
   CreateSessionRequest,
   CreateSessionResponse,
   GetSessionResponse,

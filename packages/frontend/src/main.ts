@@ -1,56 +1,56 @@
+/* eslint-disable no-console */
 import './styles.css';
+import { API_BASE, api } from './api';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
 import { createShell } from './shell';
 import { renderAnalysis } from './views/analysis';
+import { renderDashboard } from './views/dashboard';
+import { renderHistory } from './views/history';
 import { renderInterview } from './views/interview';
 import { renderSession } from './views/session';
 
-function renderDashboard(container: HTMLElement): void {
-  container.innerHTML = `
-    <div class="empty-state">
-      <div class="empty-state__icon">
-        <i data-lucide="brain"></i>
-      </div>
-      <h3 class="empty-state__title">No baseline established</h3>
-      <p class="empty-state__description">Configure an initial interview to calibrate your evaluation model.</p>
-      <button class="btn btn--primary" style="margin-top: var(--space-4)" onclick="window.location.hash='#/session'">
-        <i data-lucide="plus"></i>
-        <span>Initialize Session</span>
-      </button>
-    </div>
-  `;
-  refreshIcons();
-}
+async function renderSettings(container: HTMLElement): Promise<void> {
+  container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading settings...</div>';
+  try {
+    let strategyVersion = 'Unknown';
+    try {
+      const res = await api.getSessions();
+      const sessions = res.sessions || [];
+      if (sessions.length > 0) {
+        const latestSessionId = sessions[0].id;
+        const sessionDetail = await api.getSession(latestSessionId);
+        strategyVersion = sessionDetail.session?.strategyVersion || 'Unknown';
+      }
+    } catch (e) {
+      console.warn('Could not fetch strategy version', e);
+    }
 
-function renderHistory(container: HTMLElement): void {
-  container.innerHTML = `
-    <div class="empty-state">
-      <div class="empty-state__icon">
-        <i data-lucide="archive"></i>
+    container.innerHTML = `
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-xl font-semibold mb-6">System Configuration</h2>
+        <div class="panel p-6">
+          <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">API Base URL</h3>
+            <div class="flex items-center gap-2">
+              <i data-lucide="server" class="text-gray-400"></i>
+              <code class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-800">${API_BASE}</code>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Current Strategy Version</h3>
+            <div class="flex items-center gap-2">
+              <i data-lucide="git-commit" class="text-gray-400"></i>
+              <span class="text-gray-800 font-medium">${strategyVersion}</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <h3 class="empty-state__title">Recent Evaluations</h3>
-      <p class="empty-state__description mb-4">System Architecture • Rate Limiter • Completed 2m ago</p>
-      <button class="btn btn--secondary" onclick="window.location.hash='#/analysis'">
-        <i data-lucide="bar-chart-2"></i>
-        <span>Review Telemetry</span>
-      </button>
-    </div>
-  `;
-  refreshIcons();
-}
-
-function renderSettings(container: HTMLElement): void {
-  container.innerHTML = `
-    <div class="empty-state">
-      <div class="empty-state__icon">
-        <i data-lucide="sliders-horizontal"></i>
-      </div>
-      <h3 class="empty-state__title">System Configuration</h3>
-      <p class="empty-state__description">Environment variables and evaluation preferences will be available here.</p>
-    </div>
-  `;
-  refreshIcons();
+    `;
+    refreshIcons();
+  } catch (err) {
+    container.innerHTML = '<div class="p-8 text-center text-error">Failed to load settings</div>';
+  }
 }
 
 // Bootstrap

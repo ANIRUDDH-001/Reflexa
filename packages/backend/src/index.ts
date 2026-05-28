@@ -2,13 +2,21 @@ import './telemetry';
 import { trace } from '@opentelemetry/api';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
+import { runIntrospection } from './engine/introspection';
 import { processTurn, generateEvaluation } from './engine/llm';
+import {
+  getLatestStrategy,
+  saveStrategy,
+  getSession,
+  saveSession,
+  getHistorySessions,
+} from './state/db';
 import { BackendSessionState } from './state/types';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -40,9 +48,6 @@ const turnLimiter = rateLimit({
 app.use(cors());
 app.use(express.json());
 
-// In-memory state store
-const sessions = new Map<string, BackendSessionState>();
-
 app.get('/health', (_req: Request, res: Response) => {
   const payload = { status: 'ok' as const, ts: new Date().toISOString() };
   const parsed = APIContracts.HealthResponse.safeParse(payload);
@@ -60,13 +65,15 @@ app.post('/session', async (req: Request, res: Response) => {
   }
 
   const sessionId = generateId();
-  const config = parsedBody.data.config || {
-    role: null,
-    difficulty: null,
-    style: null,
-    timeLimit: null,
-    focusAreas: [],
+  const config = {
+    role: parsedBody.data.config?.role ?? null,
+    difficulty: parsedBody.data.config?.difficulty ?? null,
+    style: parsedBody.data.config?.style ?? null,
+    timeLimit: parsedBody.data.config?.timeLimit ?? null,
+    focusAreas: parsedBody.data.config?.focusAreas ?? [],
   };
+
+  const latestStrategy = getLatestStrategy();
 
   const newSession: BackendSessionState = {
     id: sessionId,
@@ -75,9 +82,10 @@ app.post('/session', async (req: Request, res: Response) => {
     status: 'in_progress',
     interviewPhase: 'intro',
     lastAgentAction: null,
-    strategyVersion: 'v1.0.0',
+    strategyVersion: latestStrategy?.version || 'v1.0.0',
     turnCount: 0,
     config,
+    activeStrategyRules: latestStrategy?.rules || [],
     trace: [
       {
         id: generateId(),
@@ -93,7 +101,7 @@ app.post('/session', async (req: Request, res: Response) => {
     ],
   };
 
-  sessions.set(sessionId, newSession);
+  saveSession(newSession);
 
   const responsePayload = { session: newSession };
   const parsedRes = APIContracts.CreateSessionResponse.safeParse(responsePayload);
@@ -107,7 +115,7 @@ app.post('/session', async (req: Request, res: Response) => {
 // Fetch current session state
 app.get('/session/:id', (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = sessions.get(sessionId);
+  const session = getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -125,7 +133,7 @@ app.get('/session/:id', (req: Request, res: Response) => {
 // Submit an answer (user turn)
 app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = sessions.get(sessionId);
+  const session = getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -177,6 +185,8 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
       },
     });
 
+    saveSession(session);
+
     const responsePayload = {
       text: llmOutput.agentMessage,
       traceId,
@@ -198,7 +208,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
 // Close a session
 app.post('/session/:id/end', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = sessions.get(sessionId);
+  const session = getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -215,15 +225,40 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
   try {
     const evaluation = await generateEvaluation(session.trace || [], sessionId);
+
+    // Introspection via MCP
+    const evalScore = evaluation.rubric?.overall || evaluation.score || 0;
+    const introspection = await runIntrospection(sessionId, evalScore);
+
+    // Save new strategy version
+    const newVersionId = `v${Date.now()}`;
+    saveStrategy(newVersionId, introspection.newRules);
+
+    evaluation.strategyOverrides = introspection.newRules;
+
     // Save the evaluation in the session state so GET /session/:id returns it
     (session as unknown as { evaluation: unknown }).evaluation = evaluation;
+    session.strategyUpdate = {
+      id: newVersionId,
+      sessionId: session.id,
+      whatFailed: introspection.whatFailed,
+      whyItFailed: introspection.whyItFailed,
+      whatToDoNextTime: introspection.whatToDoNextTime,
+      whatToAvoidNextTime: introspection.whatToAvoidNextTime,
+      updatedAt: new Date().toISOString(),
+    };
+    session.strategyVersion = newVersionId;
+    session.activeStrategyRules = introspection.newRules;
 
     const traceId = trace.getActiveSpan()?.spanContext().traceId;
     session.evalTraceId = traceId;
 
+    saveSession(session);
+
     const responsePayload = {
       status: 'completed' as const,
       analysisSummary: evaluation.summary,
+      strategySummary: introspection.whatFailed,
       traceId,
     };
 
@@ -241,12 +276,72 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   }
 });
 
+// Fetch all history sessions
+app.get('/sessions', (req: Request, res: Response) => {
+  const userId = (req.query.userId as string) || 'default_user';
+  try {
+    const history = getHistorySessions(userId);
+    return res.json({ sessions: history });
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'Failed to fetch history', details: err });
+  }
+});
+
+// Compare session to previous
+app.get('/session/:id/compare', (req: Request, res: Response) => {
+  const sessionId = req.params.id;
+  const session = getSession(sessionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const history = getHistorySessions(session.userId);
+  const currentIndex = history.findIndex((h) => h.id === sessionId);
+
+  if (currentIndex === -1 || currentIndex === history.length - 1) {
+    return res.json({ comparison: null }); // No previous session
+  }
+
+  const previousSession = history[currentIndex + 1];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentRubric = (session as any).evaluation?.rubric;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const previousRubric = (previousSession as any).evaluation?.rubric;
+
+  if (!currentRubric || !previousRubric) {
+    return res.json({ comparison: null });
+  }
+
+  const delta: Record<string, number> = {};
+  for (const key of Object.keys(currentRubric)) {
+    const k = key as keyof typeof currentRubric;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delta[k as string] = ((currentRubric as any)[k] || 0) - ((previousRubric as any)[k] || 0);
+  }
+
+  const comparison = {
+    baselineSessionId: previousSession.id,
+    currentSessionId: session.id,
+    delta,
+    behaviorChanges: `Compared to the previous session (${
+      previousSession.id
+    }), overall score changed by ${delta.overall > 0 ? '+' : ''}${delta.overall} points.`,
+  };
+
+  return res.json({ comparison });
+});
+
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error(err);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
+// Export app for supertest integration tests
+export { app };
+
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  logger.info(`Server started on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    logger.info(`Server started on port ${PORT}`);
+  });
+}

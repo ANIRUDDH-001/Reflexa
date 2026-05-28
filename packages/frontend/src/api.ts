@@ -20,6 +20,18 @@ export const api = {
     return res.json();
   },
 
+  async getSessions(userId: string = 'demo-user') {
+    const res = await fetch(`${API_BASE}/sessions?userId=${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch sessions');
+    return res.json();
+  },
+
+  async getComparison(id: string) {
+    const res = await fetch(`${API_BASE}/session/${id}/compare`);
+    if (!res.ok) throw new Error('Failed to fetch comparison');
+    return res.json();
+  },
+
   async submitTurn(id: string, text: string) {
     const res = await fetch(`${API_BASE}/session/${id}/turn`, {
       method: 'POST',

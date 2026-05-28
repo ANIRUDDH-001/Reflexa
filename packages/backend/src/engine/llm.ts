@@ -132,13 +132,23 @@ export async function processTurn(
 }
 
 export interface EvaluationResultData {
-  score: number;
+  score?: number; // legacy
+  rubric: {
+    relevance: number;
+    depth: number;
+    clarity: number;
+    adaptability: number;
+    pacing: number;
+    missedOpportunities: number;
+    overall: number;
+  };
   summary: string;
   weakTurns: Array<{
     turnLabel: string;
     summary: string;
     explanation: string;
     traceData: string;
+    failurePatternLabel: string;
   }>;
   strategyOverrides: string[];
 }
@@ -146,8 +156,40 @@ export interface EvaluationResultData {
 const evalSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    score: { type: Type.INTEGER, description: 'Overall score out of 100' },
-    summary: { type: Type.STRING, description: "Brief summary of the candidate's performance" },
+    rubric: {
+      type: Type.OBJECT,
+      properties: {
+        relevance: {
+          type: Type.INTEGER,
+          description: 'Score out of 100 for relevance of follow-up questions',
+        },
+        depth: { type: Type.INTEGER, description: 'Score out of 100 for depth of probing' },
+        clarity: {
+          type: Type.INTEGER,
+          description: 'Score out of 100 for clarity of reasoning checks',
+        },
+        adaptability: {
+          type: Type.INTEGER,
+          description: 'Score out of 100 for adaptability to candidate responses',
+        },
+        pacing: { type: Type.INTEGER, description: 'Score out of 100 for interview pacing' },
+        missedOpportunities: {
+          type: Type.INTEGER,
+          description: 'Score out of 100 (100 means no missed opportunities)',
+        },
+        overall: { type: Type.INTEGER, description: 'Overall score out of 100' },
+      },
+      required: [
+        'relevance',
+        'depth',
+        'clarity',
+        'adaptability',
+        'pacing',
+        'missedOpportunities',
+        'overall',
+      ],
+    },
+    summary: { type: Type.STRING, description: "Brief summary of the agent's performance" },
     weakTurns: {
       type: Type.ARRAY,
       items: {
@@ -163,8 +205,13 @@ const evalSchema: Schema = {
             type: Type.STRING,
             description: 'HTML snippet containing the exact AI and User messages for this turn',
           },
+          failurePatternLabel: {
+            type: Type.STRING,
+            description:
+              "A categorical label for the failure (e.g. 'shallow_probing', 'ignored_context', 'poor_pacing')",
+          },
         },
-        required: ['turnLabel', 'summary', 'explanation', 'traceData'],
+        required: ['turnLabel', 'summary', 'explanation', 'traceData', 'failurePatternLabel'],
       },
     },
     strategyOverrides: {
@@ -172,7 +219,7 @@ const evalSchema: Schema = {
       items: { type: Type.STRING },
     },
   },
-  required: ['score', 'summary', 'weakTurns', 'strategyOverrides'],
+  required: ['rubric', 'summary', 'weakTurns', 'strategyOverrides'],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,7 +247,7 @@ export async function generateEvaluation(
           .join('\n\n');
 
         const systemInstruction =
-          'You are an expert engineering manager evaluating a completed interview. Analyze the following interview trace and identify the weakest turns where the candidate struggled, made assumptions, or missed requirements. Provide a comprehensive evaluation with strategy overrides to focus on in future sessions.';
+          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.";
 
         for (const model of MODELS) {
           try {
