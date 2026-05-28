@@ -31,10 +31,10 @@ export function renderAnalysis(container: HTMLElement): void {
   scoreGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
 
   const scoreData = [
-    { label: 'Overall Score', score: '82%', trend: '+4%', isPositive: true },
-    { label: 'Requirements', score: '95%', trend: 'Steady', isPositive: true },
-    { label: 'High-level Design', score: '85%', trend: '+10%', isPositive: true },
-    { label: 'Deep Dive (Bottlenecks)', score: '60%', trend: '-5%', isPositive: false },
+    { label: 'Overall Score', score: '82%', trend: '+4%', trendType: 'positive' },
+    { label: 'Requirements', score: '95%', trend: 'Steady', trendType: 'neutral' },
+    { label: 'High-level Design', score: '85%', trend: '+10%', trendType: 'positive' },
+    { label: 'Deep Dive (Bottlenecks)', score: '60%', trend: '-5%', trendType: 'negative' },
   ];
 
   scoreData.forEach((s) => {
@@ -44,11 +44,19 @@ export function renderAnalysis(container: HTMLElement): void {
       <div class="flex items-end gap-3">
         <div class="text-3xl font-bold">${s.score}</div>
         <div class="text-sm font-medium ${
-          s.isPositive ? 'text-success' : 'text-error'
+          s.trendType === 'positive'
+            ? 'text-success'
+            : s.trendType === 'negative'
+            ? 'text-error'
+            : 'text-gray-500'
         } mb-1 flex items-center gap-1">
-          <i data-lucide="${
-            s.isPositive ? 'trending-up' : 'trending-down'
-          }" style="width: 14px; height: 14px"></i>
+          ${
+            s.trendType !== 'neutral'
+              ? `<i data-lucide="${
+                  s.trendType === 'positive' ? 'trending-up' : 'trending-down'
+                }" style="width: 14px; height: 14px"></i>`
+              : `<i data-lucide="minus" style="width: 14px; height: 14px"></i>`
+          }
           ${s.trend}
         </div>
       </div>
@@ -84,7 +92,7 @@ export function renderAnalysis(container: HTMLElement): void {
   const weakTurnItem1 = document.createElement('div');
   weakTurnItem1.className = 'p-4 border rounded-md border-error-light bg-error-light bg-opacity-10';
   weakTurnItem1.innerHTML = `
-    <div class="flex justify-between items-start mb-2">
+    <div class="flex justify-between items-center mb-2">
       ${createBadge({ label: 'Missed Requirement', variant: 'error' }).outerHTML}
       <span class="text-xs text-gray-500">Turn 4</span>
     </div>
@@ -99,7 +107,7 @@ export function renderAnalysis(container: HTMLElement): void {
   weakTurnItem2.className =
     'p-4 border rounded-md border-warning-light bg-warning-light bg-opacity-10';
   weakTurnItem2.innerHTML = `
-    <div class="flex justify-between items-start mb-2">
+    <div class="flex justify-between items-center mb-2">
       ${createBadge({ label: 'Vague Technical Detail', variant: 'warning' }).outerHTML}
       <span class="text-xs text-gray-500">Turn 12</span>
     </div>
@@ -154,14 +162,15 @@ export function renderAnalysis(container: HTMLElement): void {
       <li>More aggressive follow-ups on race conditions.</li>
       <li>System design prompt will heavily feature multi-region constraints.</li>
     </ul>
-    ${
-      createButton({
-        label: 'Schedule Next Session',
-        variant: 'primary',
-        icon: 'calendar',
-        size: 'sm',
-      }).outerHTML
-    }
+    <div class="mt-auto">
+      ${
+        createButton({
+          label: 'Schedule Next Session',
+          variant: 'primary',
+          icon: 'calendar',
+        }).outerHTML
+      }
+    </div>
   `;
   rightCol.appendChild(
     createCard({

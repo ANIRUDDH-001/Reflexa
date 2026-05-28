@@ -6,6 +6,8 @@ const NAV_ITEMS = [
   { path: '/session', label: 'New Session', icon: 'plus-circle' },
   { path: '/history', label: 'History', icon: 'clock' },
   { path: '/settings', label: 'Settings', icon: 'settings' },
+  { path: '/interview', label: 'Active Session', icon: 'play', hidden: true },
+  { path: '/analysis', label: 'Session Analysis', icon: 'bar-chart-2', hidden: true },
 ];
 
 let sidebarCollapsed = false;
@@ -47,7 +49,7 @@ export function createShell(root: HTMLElement): HTMLElement {
   const nav = document.createElement('nav');
   nav.className = 'sidebar__nav';
 
-  NAV_ITEMS.forEach((item) => {
+  NAV_ITEMS.filter((item) => !item.hidden).forEach((item) => {
     const btn = document.createElement('button');
     btn.className = 'sidebar__nav-item';
     btn.dataset.path = item.path;

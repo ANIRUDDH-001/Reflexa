@@ -351,19 +351,21 @@ function renderStep4(): HTMLElement {
       </dl>
     </div>
     
-    <div class="flex justify-center">
-      ${
-        createButton({
-          label: 'Start Interview',
-          variant: 'primary',
-          icon: 'play',
-          onClick: () => {
-            window.location.hash = '#/interview';
-          },
-        }).outerHTML
-      }
     </div>
   `;
+
+  const btnWrapper = document.createElement('div');
+  btnWrapper.className = 'flex justify-center';
+  const startBtn = createButton({
+    label: 'Start Interview',
+    variant: 'primary',
+    icon: 'play',
+    onClick: () => {
+      window.location.hash = '#/interview';
+    },
+  });
+  btnWrapper.appendChild(startBtn);
+  wrapper.appendChild(btnWrapper);
 
   return wrapper;
 }
