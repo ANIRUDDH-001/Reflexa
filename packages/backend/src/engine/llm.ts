@@ -82,3 +82,85 @@ export async function processTurn(
 
   throw new Error('All fallback models failed.');
 }
+
+export interface EvaluationResultData {
+  score: number;
+  summary: string;
+  weakTurns: Array<{
+    turnLabel: string;
+    summary: string;
+    explanation: string;
+    traceData: string;
+  }>;
+  strategyOverrides: string[];
+}
+
+const evalSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    score: { type: Type.INTEGER, description: 'Overall score out of 100' },
+    summary: { type: Type.STRING, description: "Brief summary of the candidate's performance" },
+    weakTurns: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          turnLabel: { type: Type.STRING, description: "e.g., 'Turn 4'" },
+          summary: { type: Type.STRING, description: "Short label like 'Missed Requirement'" },
+          explanation: {
+            type: Type.STRING,
+            description: 'Detailed explanation of what went wrong and how to fix it',
+          },
+          traceData: {
+            type: Type.STRING,
+            description: 'HTML snippet containing the exact AI and User messages for this turn',
+          },
+        },
+        required: ['turnLabel', 'summary', 'explanation', 'traceData'],
+      },
+    },
+    strategyOverrides: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
+  required: ['score', 'summary', 'weakTurns', 'strategyOverrides'],
+};
+
+export async function generateEvaluation(trace: unknown[]): Promise<EvaluationResultData> {
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GOOGLE_API_KEY || '',
+  });
+
+  const traceText = trace
+    .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload.text}`)
+    .join('\n\n');
+
+  const systemInstruction =
+    'You are an expert engineering manager evaluating a completed interview. Analyze the following interview trace and identify the weakest turns where the candidate struggled, made assumptions, or missed requirements. Provide a comprehensive evaluation with strategy overrides to focus on in future sessions.';
+
+  for (const model of MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: traceText,
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+          responseSchema: evalSchema,
+        },
+      });
+
+      const rawText = response.text;
+      if (!rawText) throw new Error('Empty response from LLM');
+      return JSON.parse(rawText);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        // fallback
+      }
+    }
+  }
+
+  throw new Error('All fallback models failed.');
+}

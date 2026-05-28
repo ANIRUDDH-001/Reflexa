@@ -2,7 +2,7 @@ import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import 'dotenv/config';
-import { processTurn } from './engine/llm';
+import { processTurn, generateEvaluation } from './engine/llm';
 import { BackendSessionState } from './state/types';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -161,7 +161,7 @@ app.post('/session/:id/turn', async (req: Request, res: Response) => {
 });
 
 // Close a session
-app.post('/session/:id/end', (req: Request, res: Response) => {
+app.post('/session/:id/end', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   const session = sessions.get(sessionId);
 
@@ -178,17 +178,28 @@ app.post('/session/:id/end', (req: Request, res: Response) => {
   session.interviewPhase = 'closing';
   session.endedAt = new Date().toISOString();
 
-  const responsePayload = {
-    status: 'completed' as const,
-    analysisSummary: 'Analysis summary generated for the session.',
-  };
+  try {
+    const evaluation = await generateEvaluation(session.trace || []);
+    // Save the evaluation in the session state so GET /session/:id returns it
+    (session as unknown as { evaluation: unknown }).evaluation = evaluation;
 
-  const parsedRes = APIContracts.EndSessionResponse.safeParse(responsePayload);
-  if (!parsedRes.success) {
-    return res.status(500).json({ error: 'contract mismatch', details: parsedRes.error.format() });
+    const responsePayload = {
+      status: 'completed' as const,
+      analysisSummary: evaluation.summary,
+    };
+
+    const parsedRes = APIContracts.EndSessionResponse.safeParse(responsePayload);
+    if (!parsedRes.success) {
+      return res
+        .status(500)
+        .json({ error: 'contract mismatch', details: parsedRes.error.format() });
+    }
+
+    return res.json(responsePayload);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'Failed to generate evaluation', details: err });
   }
-
-  return res.json(responsePayload);
 });
 
 const PORT = process.env.PORT || 8000;

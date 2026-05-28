@@ -60,8 +60,8 @@ if (app) {
 
   registerRoute('/', renderDashboard);
   registerRoute('/session', renderSession);
-  registerRoute('/interview', renderInterview);
-  registerRoute('/analysis', renderAnalysis);
+  registerRoute('/interview/:id', renderInterview);
+  registerRoute('/analysis/:id', renderAnalysis);
   registerRoute('/history', renderHistory);
   registerRoute('/settings', renderSettings);
 

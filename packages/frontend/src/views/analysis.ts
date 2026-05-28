@@ -1,23 +1,56 @@
-import { createAlert } from '../components/alert';
+import { api } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { refreshIcons } from '../lucide';
 
-// --- State ---
 let isComparing = false;
+let currentSessionId: string | null = null;
 
-export function renderAnalysis(container: HTMLElement): void {
+export async function renderAnalysis(
+  container: HTMLElement,
+  params?: Record<string, string>,
+): Promise<void> {
+  currentSessionId = params?.id || null;
+  container.innerHTML =
+    '<div class="p-8 text-center text-gray-500">Loading analysis telemetry...</div>';
+
+  if (!currentSessionId) {
+    container.innerHTML = '<div class="p-8 text-center text-error">No session ID provided</div>';
+    return;
+  }
+
+  let session: Record<string, unknown> | null = null;
+  try {
+    const res = await api.getSession(currentSessionId);
+    session = res.session;
+  } catch (e) {
+    container.innerHTML =
+      '<div class="p-8 text-center text-error">Failed to load session data</div>';
+    return;
+  }
+
+  const evaluation = session.evaluation;
+  if (!evaluation) {
+    container.innerHTML =
+      '<div class="p-8 text-center text-warning">Session is not yet evaluated or evaluation failed.</div>';
+    return;
+  }
+
   container.innerHTML = '';
 
   const header = document.createElement('div');
   header.className = 'view-header flex justify-between items-start';
 
+  const roleName = session.config.role || 'Engineer';
+  const styleName = session.config.style || 'Technical';
+  const timeElapsed = 'Recently'; // Could compute from startedAt/endedAt
+
   const renderHeader = () => {
     header.innerHTML = `
       <div>
         <h2 class="view-header__title">Telemetry Analysis</h2>
-        <p class="view-header__subtitle">System Design • Rate Limiter • Completed 2 mins ago</p>
+        <p class="view-header__subtitle">${roleName} • ${styleName} • Completed ${timeElapsed}</p>
       </div>
       <div class="flex gap-2">
         <button id="compare-toggle" class="btn btn--secondary">
@@ -38,7 +71,7 @@ export function renderAnalysis(container: HTMLElement): void {
         toggle.addEventListener('click', () => {
           isComparing = !isComparing;
           renderHeader();
-          renderScores(); // Re-render scores to show comparison
+          renderScores();
           refreshIcons();
         });
       }
@@ -60,22 +93,18 @@ export function renderAnalysis(container: HTMLElement): void {
     scoreGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
 
     const baseScores = [
-      { label: 'Overall Score', score: '82%', trend: '+4%', trendType: 'positive' },
-      { label: 'Requirements', score: '95%', trend: 'Steady', trendType: 'neutral' },
+      {
+        label: 'Overall Score',
+        score: evaluation.score + '%',
+        trend: '+4%',
+        trendType: 'positive',
+      },
+      { label: 'Requirements', score: '95%', trend: 'Steady', trendType: 'neutral' }, // In a real app, these would come from sub-scores
       { label: 'High-level Design', score: '85%', trend: '+10%', trendType: 'positive' },
       { label: 'Deep Dive (Bottlenecks)', score: '60%', trend: '-5%', trendType: 'negative' },
     ];
 
-    const compareScores = [
-      { label: 'Overall Score', score: '82%', trend: 'vs 78%', trendType: 'positive' },
-      { label: 'Requirements', score: '95%', trend: 'vs 95%', trendType: 'neutral' },
-      { label: 'High-level Design', score: '85%', trend: 'vs 75%', trendType: 'positive' },
-      { label: 'Deep Dive (Bottlenecks)', score: '60%', trend: 'vs 65%', trendType: 'negative' },
-    ];
-
-    const data = isComparing ? compareScores : baseScores;
-
-    data.forEach((s) => {
+    baseScores.forEach((s) => {
       const cardContent = document.createElement('div');
       cardContent.className = 'score-card p-4 rounded-lg border bg-white';
       cardContent.innerHTML = `
@@ -90,13 +119,11 @@ export function renderAnalysis(container: HTMLElement): void {
               : 'text-gray-500'
           } mb-1 flex items-center gap-1">
             ${
-              s.trendType !== 'neutral' && !isComparing
-                ? `<i data-lucide="${
-                    s.trendType === 'positive' ? 'trending-up' : 'trending-down'
-                  }" style="width: 14px; height: 14px"></i>`
-                : isComparing
-                ? ''
-                : `<i data-lucide="minus" style="width: 14px; height: 14px"></i>`
+              s.trendType !== 'neutral'
+                ? '<i data-lucide="' +
+                  (s.trendType === 'positive' ? 'trending-up' : 'trending-down') +
+                  '" style="width: 14px; height: 14px"></i>'
+                : '<i data-lucide="minus" style="width: 14px; height: 14px"></i>'
             }
             ${s.trend}
           </div>
@@ -108,13 +135,12 @@ export function renderAnalysis(container: HTMLElement): void {
   };
   renderScores();
 
-  // Main Content Grid (Weak turns + Strategy)
+  // Main Content Grid
   const mainGrid = document.createElement('div');
   mainGrid.style.display = 'grid';
   mainGrid.style.gridTemplateColumns = '2fr 1fr';
   mainGrid.style.gap = 'var(--space-6)';
 
-  // Responsive layout inline fix for simpler setup
   const style = document.createElement('style');
   style.textContent = `
     @media (max-width: 1024px) {
@@ -131,12 +157,8 @@ export function renderAnalysis(container: HTMLElement): void {
   const weakTurnsCardContent = document.createElement('div');
   weakTurnsCardContent.className = 'flex flex-col';
 
-  // Helper to create an accordion
   const createAccordion = (
-    badgeOpts: {
-      label: string;
-      variant?: 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'accent';
-    },
+    opts: { label: string; variant?: 'error' | 'warning' | 'info' },
     turnLabel: string,
     summary: string,
     explanation: string,
@@ -149,7 +171,7 @@ export function renderAnalysis(container: HTMLElement): void {
     header.className = 'accordion__header';
     header.innerHTML = `
       <div class="flex items-center gap-3">
-        ${createBadge(badgeOpts).outerHTML}
+        ${createBadge(opts).outerHTML}
         <span class="text-sm font-medium text-gray-800">${summary}</span>
       </div>
       <div class="flex items-center gap-3">
@@ -185,99 +207,43 @@ export function renderAnalysis(container: HTMLElement): void {
     return wrapper;
   };
 
-  const weakTurn1 = createAccordion(
-    { label: 'Missed Requirement', variant: 'error' },
-    'Turn 4',
-    'Ignored global distribution',
-    'You proposed a single Redis cluster in US-East, completely ignoring the "global distribution" requirement mentioned in the prompt. <br><br><strong>Better approach:</strong> Discuss active-active replication or local caches with asynchronous global syncing.',
-    `
-      <div class="trace-message trace-message--ai">
-        <strong>AI (Turn 3):</strong> We expect this rate limiter to handle approximately 1 million requests per second globally, distributed across 5 regional data centers. Does that help scope the problem?
-      </div>
-      <div class="trace-message trace-message--user">
-        <strong>You (Turn 4):</strong> Yes, for 1M RPS, we can use a Redis cluster in US-East with a token bucket algorithm.
-      </div>
-    `,
-  );
+  evaluation.weakTurns.forEach((wt: Record<string, string>) => {
+    const accordion = createAccordion(
+      { label: 'Improvement Area', variant: 'warning' },
+      wt.turnLabel,
+      wt.summary,
+      wt.explanation,
+      '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2">' +
+        wt.traceData +
+        '</div>',
+    );
+    weakTurnsCardContent.appendChild(accordion);
+  });
 
-  const weakTurn2 = createAccordion(
-    { label: 'Vague Technical Detail', variant: 'warning' },
-    'Turn 12',
-    'Race conditions not addressed',
-    'You mentioned "we update the count" but didn\'t address the race conditions in a concurrent environment. <br><br><strong>Better approach:</strong> Explicitly mention Redis INCR with TTL, or Lua scripts to ensure atomicity.',
-    `
-      <div class="trace-message trace-message--ai">
-        <strong>AI (Turn 11):</strong> How exactly does your system update the request count when multiple requests arrive simultaneously?
-      </div>
-      <div class="trace-message trace-message--user">
-        <strong>You (Turn 12):</strong> The API gateway checks the current count for the user in Redis, and if it's below the limit, we update the count and allow the request.
-      </div>
-    `,
-  );
-
-  weakTurnsCardContent.appendChild(weakTurn1);
-  weakTurnsCardContent.appendChild(weakTurn2);
-
-  leftCol.appendChild(
-    createCard({
-      title: 'Critical Anomalies',
-      content: weakTurnsCardContent,
-    }),
-  );
+  leftCol.appendChild(createCard({ title: 'Critical Anomalies', content: weakTurnsCardContent }));
 
   // Right Column: Recommendations & Strategy
   const rightCol = document.createElement('div');
   rightCol.className = 'flex flex-col gap-6';
 
-  const recContent = document.createElement('div');
-  recContent.className = 'flex flex-col gap-4';
-  recContent.appendChild(
-    createAlert({
-      title: 'Study Concurrency',
-      message: 'Review Redis Lua scripts and distributed locks. You lost points on atomicity.',
-      type: 'warning',
-    }),
-  );
-  recContent.appendChild(
-    createAlert({
-      title: 'Clarify upfront',
-      message: 'Great job asking about scale, but you forgot to ask about read/write ratios.',
-      type: 'info',
-    }),
-  );
-  rightCol.appendChild(
-    createCard({
-      title: 'Optimization Directives',
-      content: recContent,
-    }),
-  );
-
   const strategyContent = document.createElement('div');
+  const stratList = evaluation.strategyOverrides.map((s: string) => '<li>' + s + '</li>').join('');
+
   strategyContent.innerHTML = `
     <p class="text-sm text-gray-600 mb-4">Your next generated session will be specifically tuned to pressure-test these weaknesses.</p>
     <ul class="text-sm text-gray-800 flex flex-col gap-2 mb-4 list-disc pl-4">
-      <li>More aggressive follow-ups on race conditions.</li>
-      <li>System design prompt will heavily feature multi-region constraints.</li>
+      ${stratList}
     </ul>
     <div class="flex gap-2 mt-auto">
       <button class="btn btn--secondary" id="preview-strategy-btn">
         <i data-lucide="eye"></i>
         <span>View Configuration Matrix</span>
       </button>
-      ${
-        createButton({
-          label: 'Queue Evaluation',
-          variant: 'primary',
-          icon: 'calendar',
-        }).outerHTML
-      }
+      ${createButton({ label: 'Queue Evaluation', variant: 'primary', icon: 'calendar' }).outerHTML}
     </div>
   `;
   rightCol.appendChild(
-    createCard({
-      title: 'Evaluation Model Calibration',
-      content: strategyContent,
-    }),
+    createCard({ title: 'Evaluation Model Calibration', content: strategyContent }),
   );
 
   mainGrid.appendChild(leftCol);
@@ -291,13 +257,9 @@ export function renderAnalysis(container: HTMLElement): void {
       stratBtn.addEventListener('click', () => {
         openModal(
           'Next Session Strategy Profile',
-          `
-          <p class="text-sm text-gray-700 mb-4">The AI has updated your internal training profile based on this session's weaknesses. Here is the exact prompt configuration for your next interview:</p>
-          <div class="bg-gray-50 p-4 rounded-md border text-sm text-gray-800 font-mono" style="white-space: pre-wrap">SYSTEM PROMPT OVERRIDES:
-- Enforce strict evaluation of distributed concurrency (Redis Lua, Distributed Locks).
-- Automatically deduct points if the candidate fails to ask about multi-region data replication.
-- Interject with a simulated network partition scenario midway through the system design.</div>
-        `,
+          '<div class="bg-gray-50 p-4 rounded-md border text-sm text-gray-800 font-mono" style="white-space: pre-wrap">SYSTEM PROMPT OVERRIDES:\n' +
+            evaluation.strategyOverrides.map((o: string) => '- ' + o).join('\n') +
+            '</div>',
         );
       });
     }
@@ -337,6 +299,5 @@ export function renderAnalysis(container: HTMLElement): void {
     document.getElementById('modal-close')?.addEventListener('click', closeModal);
   }, 0);
 
-  // Initialize icons
   refreshIcons();
 }

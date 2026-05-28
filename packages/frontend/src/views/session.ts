@@ -1,3 +1,4 @@
+import { api } from '../api';
 import { createButton } from '../components/button';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
@@ -357,8 +358,21 @@ function renderStep4(): HTMLElement {
     label: 'Launch Evaluation',
     variant: 'primary',
     icon: 'play',
-    onClick: () => {
-      window.location.hash = '#/interview';
+    onClick: async () => {
+      startBtn.classList.add('btn--loading');
+      try {
+        const response = await api.createSession(config);
+        const sessionId = response.session.id;
+        window.location.hash = `#/interview/${sessionId}`;
+      } catch (err) {
+        showToast({
+          title: 'Error',
+          message: 'Failed to provision session environment.',
+          type: 'error',
+        });
+      } finally {
+        startBtn.classList.remove('btn--loading');
+      }
     },
   });
   btnWrapper.appendChild(startBtn);
