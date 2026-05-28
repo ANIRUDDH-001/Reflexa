@@ -11,6 +11,7 @@ interface Message {
   role: 'user' | 'ai';
   text: string;
   isError?: boolean;
+  traceId?: string;
 }
 
 let messages: Message[] = [];
@@ -163,7 +164,12 @@ export async function renderInterview(
 
     try {
       const response = await api.submitTurn(currentSessionId, text);
-      messages.push({ id: Date.now().toString(), role: 'ai', text: response.text });
+      messages.push({
+        id: Date.now().toString(),
+        role: 'ai',
+        text: response.text,
+        traceId: response.traceId,
+      });
     } catch (e) {
       messages.push({
         id: Date.now().toString(),
@@ -187,7 +193,19 @@ export async function renderInterview(
           msg.role === 'ai' ? 'bot' : 'user'
         }"></i></div>
         <div class="message__content">
-          <div class="message__bubble">${msg.text}</div>
+          <div class="message__bubble">
+            ${msg.text}
+            ${
+              msg.traceId
+                ? `<div style="margin-top: 8px; font-size: 11px; opacity: 0.6;"><a href="http://localhost:6006/traces/${
+                    msg.traceId
+                  }" target="_blank" style="color: inherit; text-decoration: underline;">View Trace (${msg.traceId.slice(
+                    0,
+                    8,
+                  )})</a></div>`
+                : ''
+            }
+          </div>
         </div>
       `;
       messagesContainer.appendChild(msgEl);
@@ -261,7 +279,14 @@ export async function renderInterview(
       const lastAiMsg = aiMsgs[aiMsgs.length - 1];
 
       if (lastAiMsg) {
-        messages = [{ id: lastAiMsg.id, role: 'ai', text: lastAiMsg.payload.text }];
+        messages = [
+          {
+            id: lastAiMsg.id,
+            role: 'ai',
+            text: lastAiMsg.payload.text,
+            traceId: lastAiMsg.traceId,
+          },
+        ];
         if (lastAiMsg.payload.metadata?.scoreHint)
           currentScore = lastAiMsg.payload.metadata.scoreHint;
 

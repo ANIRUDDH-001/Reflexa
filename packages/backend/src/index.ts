@@ -1,8 +1,9 @@
+import './telemetry';
+import { trace } from '@opentelemetry/api';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import 'dotenv/config';
-import { NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import pino from 'pino';
@@ -159,11 +160,14 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
     session.lastAgentAction =
       llmOutput.nextActionIndicator as BackendSessionState['lastAgentAction'];
 
+    const traceId = trace.getActiveSpan()?.spanContext().traceId;
+
     session.trace.push({
       id: generateId(),
       sessionId,
       timestamp: new Date().toISOString(),
       type: 'ai_message',
+      traceId,
       payload: {
         text: llmOutput.agentMessage,
         metadata: {
@@ -173,7 +177,10 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
       },
     });
 
-    const responsePayload = { text: llmOutput.agentMessage };
+    const responsePayload = {
+      text: llmOutput.agentMessage,
+      traceId,
+    };
     const parsedRes = APIContracts.TurnResponse.safeParse(responsePayload);
     if (!parsedRes.success) {
       return res
@@ -207,13 +214,17 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   session.endedAt = new Date().toISOString();
 
   try {
-    const evaluation = await generateEvaluation(session.trace || []);
+    const evaluation = await generateEvaluation(session.trace || [], sessionId);
     // Save the evaluation in the session state so GET /session/:id returns it
     (session as unknown as { evaluation: unknown }).evaluation = evaluation;
+
+    const traceId = trace.getActiveSpan()?.spanContext().traceId;
+    session.evalTraceId = traceId;
 
     const responsePayload = {
       status: 'completed' as const,
       analysisSummary: evaluation.summary,
+      traceId,
     };
 
     const parsedRes = APIContracts.EndSessionResponse.safeParse(responsePayload);

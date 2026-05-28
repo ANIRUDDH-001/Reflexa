@@ -33,6 +33,7 @@ export const TurnResponse = z
   .object({
     text: z.string(),
     isThinking: z.boolean().optional(),
+    traceId: z.string().optional(),
   })
   .strict();
 
@@ -46,6 +47,7 @@ export const EndSessionResponse = z
   .object({
     status: z.literal('completed'),
     analysisSummary: z.string().optional(),
+    traceId: z.string().optional(),
   })
   .strict();
 

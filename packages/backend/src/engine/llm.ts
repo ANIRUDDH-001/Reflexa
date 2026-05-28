@@ -1,7 +1,10 @@
 import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { trace } from '@opentelemetry/api';
 import { BackendSessionState } from '../state/types';
 import { assemblePrompt } from './promptBuilder';
 import 'dotenv/config';
+
+const tracer = trace.getTracer('reflexa-agent');
 
 const MODELS = [
   'gemini-2.5-flash',
@@ -42,45 +45,90 @@ export async function processTurn(
   state: BackendSessionState,
   userMessage: string,
 ): Promise<ProcessTurnResult> {
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GOOGLE_API_KEY || '',
-  });
+  return tracer.startActiveSpan(
+    'processTurn',
+    {
+      attributes: {
+        'openinference.span.kind': 'AGENT',
+        'session.id': state.id,
+      },
+    },
+    async (agentSpan) => {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: process.env.GOOGLE_API_KEY || '',
+        });
 
-  const systemInstruction = assemblePrompt(state);
+        const systemInstruction = assemblePrompt(state);
 
-  // Build history from trace
-  const history = (state.trace || []).map((event) => ({
-    role: event.type === 'user_message' ? 'user' : 'model',
-    parts: [{ text: event.payload?.text || '' }],
-  }));
+        // Build history from trace
+        const history = (state.trace || []).map((event) => ({
+          role: event.type === 'user_message' ? 'user' : 'model',
+          parts: [{ text: event.payload?.text || '' }],
+        }));
 
-  for (const model of MODELS) {
-    try {
-      const chat = ai.chats.create({
-        model,
-        history,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-          responseMimeType: 'application/json',
-          responseSchema,
-        },
-      });
+        for (const model of MODELS) {
+          try {
+            return await tracer.startActiveSpan(
+              'gemini_chat',
+              {
+                attributes: {
+                  'openinference.span.kind': 'LLM',
+                  'session.id': state.id,
+                  'llm.model_name': model,
+                  'llm.input_messages': JSON.stringify(history),
+                },
+              },
+              async (llmSpan) => {
+                try {
+                  const chat = ai.chats.create({
+                    model,
+                    history,
+                    config: {
+                      systemInstruction,
+                      temperature: 0.7,
+                      responseMimeType: 'application/json',
+                      responseSchema,
+                    },
+                  });
 
-      const response = await chat.sendMessage({ message: userMessage });
-      const rawText = response.text;
+                  const response = await chat.sendMessage({ message: userMessage });
+                  const rawText = response.text;
 
-      if (!rawText) throw new Error('Empty response from LLM');
-      return JSON.parse(rawText);
-    } catch (e: unknown) {
-      // Fallback silently
-      if (e instanceof Error) {
-        // We could log error metrics here
+                  if (rawText) {
+                    llmSpan.setAttribute(
+                      'llm.output_messages',
+                      JSON.stringify([{ role: 'model', content: rawText }]),
+                    );
+                  }
+
+                  if (!rawText) throw new Error('Empty response from LLM');
+                  return JSON.parse(rawText);
+                } catch (err) {
+                  llmSpan.recordException(err as Error);
+                  throw err;
+                } finally {
+                  llmSpan.end();
+                }
+              },
+            );
+          } catch (e: unknown) {
+            // Fallback silently
+            if (e instanceof Error) {
+              agentSpan.recordException(e);
+            }
+          }
+        }
+
+        throw new Error('All fallback models failed.');
+      } catch (e) {
+        agentSpan.recordException(e as Error);
+        throw e;
+      } finally {
+        agentSpan.end();
       }
-    }
-  }
-
-  throw new Error('All fallback models failed.');
+    },
+  );
 }
 
 export interface EvaluationResultData {
@@ -129,41 +177,88 @@ const evalSchema: Schema = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateEvaluation(
-  trace: Array<{ type: string; payload?: any }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  traceData: Array<{ type: string; payload?: any }>,
+  sessionId?: string,
 ): Promise<EvaluationResultData> {
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GOOGLE_API_KEY || '',
-  });
+  return tracer.startActiveSpan(
+    'generateEvaluation',
+    {
+      attributes: {
+        'openinference.span.kind': 'EVALUATOR',
+        'session.id': sessionId || 'unknown',
+      },
+    },
+    async (evalSpan) => {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: process.env.GOOGLE_API_KEY || '',
+        });
 
-  const traceText = trace
-    .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
-    .join('\n\n');
+        const traceText = traceData
+          .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
+          .join('\n\n');
 
-  const systemInstruction =
-    'You are an expert engineering manager evaluating a completed interview. Analyze the following interview trace and identify the weakest turns where the candidate struggled, made assumptions, or missed requirements. Provide a comprehensive evaluation with strategy overrides to focus on in future sessions.';
+        const systemInstruction =
+          'You are an expert engineering manager evaluating a completed interview. Analyze the following interview trace and identify the weakest turns where the candidate struggled, made assumptions, or missed requirements. Provide a comprehensive evaluation with strategy overrides to focus on in future sessions.';
 
-  for (const model of MODELS) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: traceText,
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-          responseSchema: evalSchema,
-        },
-      });
+        for (const model of MODELS) {
+          try {
+            return await tracer.startActiveSpan(
+              'gemini_eval',
+              {
+                attributes: {
+                  'openinference.span.kind': 'LLM',
+                  'session.id': sessionId || 'unknown',
+                  'llm.model_name': model,
+                  'llm.input_messages': JSON.stringify([{ role: 'user', content: traceText }]),
+                },
+              },
+              async (llmSpan) => {
+                try {
+                  const response = await ai.models.generateContent({
+                    model,
+                    contents: traceText,
+                    config: {
+                      systemInstruction,
+                      temperature: 0.2,
+                      responseMimeType: 'application/json',
+                      responseSchema: evalSchema,
+                    },
+                  });
 
-      const rawText = response.text;
-      if (!rawText) throw new Error('Empty response from LLM');
-      return JSON.parse(rawText);
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        // fallback
+                  const rawText = response.text;
+                  if (rawText) {
+                    llmSpan.setAttribute(
+                      'llm.output_messages',
+                      JSON.stringify([{ role: 'model', content: rawText }]),
+                    );
+                  }
+
+                  if (!rawText) throw new Error('Empty response from LLM');
+                  return JSON.parse(rawText);
+                } catch (err) {
+                  llmSpan.recordException(err as Error);
+                  throw err;
+                } finally {
+                  llmSpan.end();
+                }
+              },
+            );
+          } catch (e: unknown) {
+            if (e instanceof Error) {
+              evalSpan.recordException(e);
+            }
+          }
+        }
+
+        throw new Error('All fallback models failed.');
+      } catch (e) {
+        evalSpan.recordException(e as Error);
+        throw e;
+      } finally {
+        evalSpan.end();
       }
-    }
-  }
-
-  throw new Error('All fallback models failed.');
+    },
+  );
 }

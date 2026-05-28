@@ -54,6 +54,14 @@ export async function renderAnalysis(
         <p class="view-header__subtitle">${roleName} • ${styleName} • Completed ${timeElapsed}</p>
       </div>
       <div class="flex gap-2">
+        ${
+          session.evalTraceId
+            ? `<a href="http://localhost:6006/traces/${session.evalTraceId}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
+                <i data-lucide="external-link"></i>
+                <span>View Full Trace</span>
+              </a>`
+            : ''
+        }
         <button id="compare-toggle" class="btn btn--secondary">
           <i data-lucide="split"></i>
           <span>${isComparing ? 'View Current' : 'Compare Previous'}</span>

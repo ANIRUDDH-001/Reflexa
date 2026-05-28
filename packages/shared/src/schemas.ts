@@ -36,6 +36,7 @@ export const TraceEvent = z.object({
   timestamp: z.string(),
   type: z.string(),
   payload: z.record(z.any()).optional(),
+  traceId: z.string().optional(),
 });
 
 export const EvaluationResult = z.object({
@@ -64,6 +65,7 @@ export const InterviewSession = z.object({
   questions: z.array(Question).optional(),
   trace: z.array(TraceEvent).optional(),
   results: z.array(EvaluationResult).optional(),
+  evalTraceId: z.string().optional(),
 });
 
 // Type aliases
