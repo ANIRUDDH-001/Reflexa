@@ -1,6 +1,9 @@
-import { APIContracts, InterviewSession } from '@reflexa/shared';
+import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import 'dotenv/config';
+import { processTurn } from './engine/llm';
+import { BackendSessionState } from './state/types';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
@@ -8,8 +11,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory state store for Subphase 4.1 skeleton
-const sessions = new Map<string, InterviewSession>();
+// In-memory state store
+const sessions = new Map<string, BackendSessionState>();
 
 app.get('/health', (_req: Request, res: Response) => {
   const payload = { status: 'ok' as const, ts: new Date().toISOString() };
@@ -21,18 +24,31 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 // Start a new session
-app.post('/session', (req: Request, res: Response) => {
+app.post('/session', async (req: Request, res: Response) => {
   const parsedBody = APIContracts.CreateSessionRequest.safeParse(req.body);
   if (!parsedBody.success) {
     return res.status(400).json({ error: 'invalid request', details: parsedBody.error.format() });
   }
 
   const sessionId = generateId();
-  const newSession: InterviewSession = {
+  const config = parsedBody.data.config || {
+    role: null,
+    difficulty: null,
+    style: null,
+    timeLimit: null,
+    focusAreas: [],
+  };
+
+  const newSession: BackendSessionState = {
     id: sessionId,
     userId: parsedBody.data.userId,
     startedAt: new Date().toISOString(),
     status: 'in_progress',
+    interviewPhase: 'intro',
+    lastAgentAction: null,
+    strategyVersion: 'v1.0.0',
+    turnCount: 0,
+    config,
     trace: [
       {
         id: generateId(),
@@ -40,7 +56,9 @@ app.post('/session', (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
         type: 'ai_message',
         payload: {
-          text: "Hello! I'll be acting as your engineering manager for this System Design interview. Today we're going to design a distributed rate limiter. Are you ready to begin?",
+          text: `Hello! I'll be acting as your engineering manager for this ${
+            config.style || 'technical'
+          } interview. Today we're going to design a distributed system. Are you ready to begin?`,
         },
       },
     ],
@@ -76,7 +94,7 @@ app.get('/session/:id', (req: Request, res: Response) => {
 });
 
 // Submit an answer (user turn)
-app.post('/session/:id/turn', (req: Request, res: Response) => {
+app.post('/session/:id/turn', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   const session = sessions.get(sessionId);
 
@@ -102,29 +120,44 @@ app.post('/session/:id/turn', (req: Request, res: Response) => {
     payload: { text: parsedBody.data.text },
   });
 
-  // Generate mock next question from AI
-  const mockFollowUps = [
-    "That's a solid starting point. What specific data structures would you use for the token bucket algorithm?",
-    'Interesting approach. How would you handle race conditions in a concurrent environment?',
-    'Can you clarify how your solution scales across multiple regional data centers?',
-  ];
-  const randomResponse = mockFollowUps[Math.floor(Math.random() * mockFollowUps.length)];
+  try {
+    session.turnCount += 1;
+    if (session.turnCount > 2) session.interviewPhase = 'deep_dive';
 
-  session.trace.push({
-    id: generateId(),
-    sessionId,
-    timestamp: new Date().toISOString(),
-    type: 'ai_message',
-    payload: { text: randomResponse },
-  });
+    // Call the real Gemini SDK integration
+    const llmOutput = await processTurn(session, parsedBody.data.text);
 
-  const responsePayload = { text: randomResponse };
-  const parsedRes = APIContracts.TurnResponse.safeParse(responsePayload);
-  if (!parsedRes.success) {
-    return res.status(500).json({ error: 'contract mismatch', details: parsedRes.error.format() });
+    // Update state based on LLM output
+    session.lastAgentAction =
+      llmOutput.nextActionIndicator as BackendSessionState['lastAgentAction'];
+
+    session.trace.push({
+      id: generateId(),
+      sessionId,
+      timestamp: new Date().toISOString(),
+      type: 'ai_message',
+      payload: {
+        text: llmOutput.agentMessage,
+        metadata: {
+          status: llmOutput.statusMetadata,
+          scoreHint: llmOutput.scoreHints,
+        },
+      },
+    });
+
+    const responsePayload = { text: llmOutput.agentMessage };
+    const parsedRes = APIContracts.TurnResponse.safeParse(responsePayload);
+    if (!parsedRes.success) {
+      return res
+        .status(500)
+        .json({ error: 'contract mismatch', details: parsedRes.error.format() });
+    }
+
+    return res.json(responsePayload);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'Failed to process turn', details: err });
   }
-
-  return res.json(responsePayload);
 });
 
 // Close a session
@@ -142,11 +175,12 @@ app.post('/session/:id/end', (req: Request, res: Response) => {
   }
 
   session.status = 'completed';
+  session.interviewPhase = 'closing';
   session.endedAt = new Date().toISOString();
 
   const responsePayload = {
     status: 'completed' as const,
-    analysisSummary: 'Mock analysis summary generated for the session.',
+    analysisSummary: 'Analysis summary generated for the session.',
   };
 
   const parsedRes = APIContracts.EndSessionResponse.safeParse(responsePayload);
@@ -157,4 +191,7 @@ app.post('/session/:id/end', (req: Request, res: Response) => {
   return res.json(responsePayload);
 });
 
-app.listen(4000);
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  // Server started
+});
