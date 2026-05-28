@@ -28,7 +28,12 @@ export function renderInterview(container: HTMLElement): void {
   `;
 
   const headerActions = document.createElement('div');
-  const endBtn = createButton({ label: 'End Session', variant: 'ghost', icon: 'square' });
+  const endBtn = createButton({
+    label: 'End Session',
+    variant: 'ghost',
+    icon: 'square',
+    onClick: () => (window.location.hash = '#/analysis'),
+  });
   endBtn.classList.add('text-error');
   headerActions.appendChild(endBtn);
 

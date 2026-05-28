@@ -2,6 +2,7 @@ import './styles.css';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
 import { createShell } from './shell';
+import { renderAnalysis } from './views/analysis';
 import { renderInterview } from './views/interview';
 
 // Placeholder views — will be replaced in later subphases
@@ -62,8 +63,12 @@ function renderHistory(container: HTMLElement): void {
         <div class="empty-state__icon">
           <i data-lucide="archive"></i>
         </div>
-        <h3 class="empty-state__title">No history</h3>
-        <p class="empty-state__description">Completed sessions and their analysis will appear here.</p>
+        <h3 class="empty-state__title">1 Completed Session</h3>
+        <p class="empty-state__description mb-4">System Design • Rate Limiter • Completed 2 mins ago</p>
+        <button class="btn btn--secondary" onclick="window.location.hash='#/analysis'">
+          <i data-lucide="bar-chart-2"></i>
+          <span>View Analysis</span>
+        </button>
       </div>
     </div>
   `;
@@ -97,6 +102,7 @@ if (app) {
   registerRoute('/', renderDashboard);
   registerRoute('/session', renderSession);
   registerRoute('/interview', renderInterview);
+  registerRoute('/analysis', renderAnalysis);
   registerRoute('/history', renderHistory);
   registerRoute('/settings', renderSettings);
 
