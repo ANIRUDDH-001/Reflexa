@@ -90,7 +90,7 @@ export function renderSession(container: HTMLElement): void {
     const header = document.createElement('div');
     header.className = 'view-header';
     header.innerHTML = `
-      <h2 class="view-header__title">Configure Session</h2>
+      <h2 class="view-header__title">Initialize Session</h2>
       <p class="view-header__subtitle">Step ${currentStep} of ${totalSteps}</p>
     `;
 
@@ -205,10 +205,10 @@ function renderSelectableCard(
 function renderStep1(reRender: () => void): HTMLElement {
   const wrapper = document.createElement('div');
 
-  wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Target Role & Difficulty</h3>`;
+  wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Target Discipline & Experience</h3>`;
 
   const roleSection = document.createElement('div');
-  roleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select your target role</p>`;
+  roleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select target discipline</p>`;
   const roleGrid = document.createElement('div');
   roleGrid.className = 'wizard-grid wizard-grid--3col';
 
@@ -223,7 +223,7 @@ function renderStep1(reRender: () => void): HTMLElement {
   roleSection.appendChild(roleGrid);
 
   const diffSection = document.createElement('div');
-  diffSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select experience level</p>`;
+  diffSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select experience tier</p>`;
   const diffGrid = document.createElement('div');
   diffGrid.className = 'wizard-grid wizard-grid--2col';
 
@@ -245,10 +245,10 @@ function renderStep1(reRender: () => void): HTMLElement {
 function renderStep2(reRender: () => void): HTMLElement {
   const wrapper = document.createElement('div');
 
-  wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Interview Style & Time</h3>`;
+  wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Evaluation Format & Duration</h3>`;
 
   const styleSection = document.createElement('div');
-  styleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select interview format</p>`;
+  styleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select evaluation mode</p>`;
   const styleGrid = document.createElement('div');
   styleGrid.className = 'wizard-grid wizard-grid--2col';
 
@@ -263,7 +263,7 @@ function renderStep2(reRender: () => void): HTMLElement {
   styleSection.appendChild(styleGrid);
 
   const timeSection = document.createElement('div');
-  timeSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Time limit</p>`;
+  timeSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Session duration</p>`;
   const timeGrid = document.createElement('div');
   timeGrid.className = 'wizard-grid wizard-grid--4col';
 
@@ -286,8 +286,8 @@ function renderStep3(reRender: () => void): HTMLElement {
   const wrapper = document.createElement('div');
 
   wrapper.innerHTML = `
-    <h3 class="text-lg font-semibold mb-2">Focus Areas</h3>
-    <p class="text-sm text-gray-500 mb-6">Select up to 3 specific areas you'd like the AI to emphasize during the interview (Optional).</p>
+    <h3 class="text-lg font-semibold mb-2">Targeted Competencies</h3>
+    <p class="text-sm text-gray-500 mb-6">Specify up to 3 technical competencies for the evaluation model to emphasize (Optional).</p>
   `;
 
   const focusGrid = document.createElement('div');
@@ -326,14 +326,14 @@ function renderStep4(): HTMLElement {
       <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success-light text-success mb-4">
         <i data-lucide="check-circle" style="width: 32px; height: 32px;"></i>
       </div>
-      <h3 class="text-2xl font-bold mb-2">Ready to begin</h3>
-      <p class="text-gray-500">Your interview environment is configured and ready.</p>
+      <h3 class="text-2xl font-bold mb-2">Environment Initialized</h3>
+      <p class="text-gray-500">Your evaluation environment is provisioned and ready.</p>
     </div>
     
     <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8 max-w-lg mx-auto">
-      <h4 class="font-semibold mb-4 text-gray-900 border-b pb-2">Session Summary</h4>
+      <h4 class="font-semibold mb-4 text-gray-900 border-b pb-2">Configuration Parameters</h4>
       <dl class="grid grid-cols-2 gap-y-4 text-sm">
-        <dt class="text-gray-500">Role</dt>
+        <dt class="text-gray-500">Discipline</dt>
         <dd class="font-medium text-right">${roleName} (${diffName})</dd>
         
         <dt class="text-gray-500">Format</dt>
@@ -342,7 +342,7 @@ function renderStep4(): HTMLElement {
         <dt class="text-gray-500">Duration</dt>
         <dd class="font-medium text-right">${timeName}</dd>
         
-        <dt class="text-gray-500">Focus Areas</dt>
+        <dt class="text-gray-500">Competencies</dt>
         <dd class="font-medium text-right">${
           config.focusAreas.length ? config.focusAreas.join(', ') : 'None'
         }</dd>
@@ -355,7 +355,7 @@ function renderStep4(): HTMLElement {
   const btnWrapper = document.createElement('div');
   btnWrapper.className = 'flex justify-center';
   const startBtn = createButton({
-    label: 'Start Interview',
+    label: 'Launch Evaluation',
     variant: 'primary',
     icon: 'play',
     onClick: () => {

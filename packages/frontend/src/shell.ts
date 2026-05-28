@@ -2,12 +2,12 @@ import { refreshIcons } from './lucide';
 import { navigate, getCurrentRoute } from './router';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: 'layout-dashboard' },
-  { path: '/session', label: 'New Session', icon: 'plus-circle' },
-  { path: '/history', label: 'History', icon: 'clock' },
-  { path: '/settings', label: 'Settings', icon: 'settings' },
+  { path: '/', label: 'Overview', icon: 'layout-dashboard' },
+  { path: '/session', label: 'Initialize Session', icon: 'plus-circle' },
+  { path: '/history', label: 'Session History', icon: 'clock' },
+  { path: '/settings', label: 'System Config', icon: 'settings' },
   { path: '/interview', label: 'Active Session', icon: 'play', hidden: true },
-  { path: '/analysis', label: 'Session Analysis', icon: 'bar-chart-2', hidden: true },
+  { path: '/analysis', label: 'Telemetry Analysis', icon: 'bar-chart-2', hidden: true },
 ];
 
 let sidebarCollapsed = false;

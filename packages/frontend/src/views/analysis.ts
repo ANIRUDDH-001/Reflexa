@@ -16,7 +16,7 @@ export function renderAnalysis(container: HTMLElement): void {
   const renderHeader = () => {
     header.innerHTML = `
       <div>
-        <h2 class="view-header__title">Session Analysis</h2>
+        <h2 class="view-header__title">Telemetry Analysis</h2>
         <p class="view-header__subtitle">System Design • Rate Limiter • Completed 2 mins ago</p>
       </div>
       <div class="flex gap-2">
@@ -26,7 +26,7 @@ export function renderAnalysis(container: HTMLElement): void {
         </button>
         ${createButton({ label: 'Share', variant: 'secondary', icon: 'share-2' }).outerHTML}
         ${
-          createButton({ label: 'Practice Weak Areas', variant: 'primary', icon: 'dumbbell' })
+          createButton({ label: 'Target Weaknesses', variant: 'primary', icon: 'dumbbell' })
             .outerHTML
         }
       </div>
@@ -220,7 +220,7 @@ export function renderAnalysis(container: HTMLElement): void {
 
   leftCol.appendChild(
     createCard({
-      title: 'Critical Weak Turns',
+      title: 'Critical Anomalies',
       content: weakTurnsCardContent,
     }),
   );
@@ -247,7 +247,7 @@ export function renderAnalysis(container: HTMLElement): void {
   );
   rightCol.appendChild(
     createCard({
-      title: 'Actionable Recommendations',
+      title: 'Optimization Directives',
       content: recContent,
     }),
   );
@@ -262,11 +262,11 @@ export function renderAnalysis(container: HTMLElement): void {
     <div class="flex gap-2 mt-auto">
       <button class="btn btn--secondary" id="preview-strategy-btn">
         <i data-lucide="eye"></i>
-        <span>Full Strategy Preview</span>
+        <span>View Configuration Matrix</span>
       </button>
       ${
         createButton({
-          label: 'Schedule Next',
+          label: 'Queue Evaluation',
           variant: 'primary',
           icon: 'calendar',
         }).outerHTML
@@ -275,7 +275,7 @@ export function renderAnalysis(container: HTMLElement): void {
   `;
   rightCol.appendChild(
     createCard({
-      title: 'Next Session Strategy Summary',
+      title: 'Evaluation Model Calibration',
       content: strategyContent,
     }),
   );

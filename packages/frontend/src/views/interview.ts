@@ -81,7 +81,7 @@ export function renderInterview(container: HTMLElement): void {
   });
 
   const pauseBtn = createButton({
-    label: 'Pause',
+    label: 'Suspend',
     variant: 'secondary',
     icon: 'pause-circle',
     size: 'sm',
@@ -92,7 +92,7 @@ export function renderInterview(container: HTMLElement): void {
   });
 
   const endBtn = createButton({
-    label: 'End Session',
+    label: 'Terminate Session',
     variant: 'secondary',
     icon: 'x-square',
     size: 'sm',
@@ -277,7 +277,7 @@ export function renderInterview(container: HTMLElement): void {
       composer.classList.add('composer--disabled');
       input.disabled = true;
       sendBtn.setAttribute('disabled', 'true');
-      input.placeholder = isPaused ? 'Session Paused' : 'AI is analyzing your response...';
+      input.placeholder = isPaused ? 'Session Suspended' : 'AI is analyzing your response...';
     } else {
       composer.classList.remove('composer--disabled');
       input.disabled = false;
@@ -289,7 +289,7 @@ export function renderInterview(container: HTMLElement): void {
     // 4. Header Actions
     pauseBtn.innerHTML = isPaused
       ? `<i data-lucide="play-circle"></i><span>Resume</span>`
-      : `<i data-lucide="pause-circle"></i><span>Pause</span>`;
+      : `<i data-lucide="pause-circle"></i><span>Suspend</span>`;
     if (isPaused) {
       pauseBtn.classList.add('bg-warning-light', 'text-warning-dark');
     } else {
@@ -299,7 +299,7 @@ export function renderInterview(container: HTMLElement): void {
     const timerBadge = document.getElementById('timer-badge');
     if (timerBadge) {
       timerBadge.innerHTML = createBadge({
-        label: isPaused ? 'Paused' : '00:15:32',
+        label: isPaused ? 'Suspended' : '00:15:32',
         variant: isPaused ? 'warning' : 'accent',
       }).outerHTML;
     }
