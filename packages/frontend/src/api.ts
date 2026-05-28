@@ -1,8 +1,10 @@
 // @ts-expect-error import.meta is injected by Vite
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+import type { SessionConfig } from '@reflexa/shared';
+
 export const api = {
-  async createSession(config: Record<string, unknown>) {
+  async createSession(config: SessionConfig) {
     const res = await fetch(`${API_BASE}/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

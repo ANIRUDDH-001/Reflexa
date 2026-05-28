@@ -2,12 +2,40 @@ import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import 'dotenv/config';
+import { NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import pino from 'pino';
+import pinoHttp from 'pino-http';
 import { processTurn, generateEvaluation } from './engine/llm';
 import { BackendSessionState } from './state/types';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
 const app = express();
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const httpLogger = pinoHttp({
+  logger,
+  redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.text', 'req.body.config'],
+});
+
+app.use(helmet());
+app.use(httpLogger);
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+});
+app.use(limiter);
+
+const turnLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // limit each IP to 10 turn requests per minute
+  message: { error: 'Rate limit exceeded for turn submission.' },
+});
+
 app.use(cors());
 app.use(express.json());
 
@@ -94,7 +122,7 @@ app.get('/session/:id', (req: Request, res: Response) => {
 });
 
 // Submit an answer (user turn)
-app.post('/session/:id/turn', async (req: Request, res: Response) => {
+app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   const session = sessions.get(sessionId);
 
@@ -202,7 +230,12 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   }
 });
 
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  logger.error(err);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
-  // Server started
+  logger.info(`Server started on port ${PORT}`);
 });

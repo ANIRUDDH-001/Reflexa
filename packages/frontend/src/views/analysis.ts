@@ -20,7 +20,8 @@ export async function renderAnalysis(
     return;
   }
 
-  let session: Record<string, unknown> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let session: any = null;
   try {
     const res = await api.getSession(currentSessionId);
     session = res.session;
@@ -207,7 +208,8 @@ export async function renderAnalysis(
     return wrapper;
   };
 
-  evaluation.weakTurns.forEach((wt: Record<string, string>) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  evaluation.weakTurns.forEach((wt: any) => {
     const accordion = createAccordion(
       { label: 'Improvement Area', variant: 'warning' },
       wt.turnLabel,

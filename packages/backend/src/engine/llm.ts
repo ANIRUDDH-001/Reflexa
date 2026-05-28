@@ -127,13 +127,16 @@ const evalSchema: Schema = {
   required: ['score', 'summary', 'weakTurns', 'strategyOverrides'],
 };
 
-export async function generateEvaluation(trace: unknown[]): Promise<EvaluationResultData> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function generateEvaluation(
+  trace: Array<{ type: string; payload?: any }>,
+): Promise<EvaluationResultData> {
   const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_API_KEY || '',
   });
 
   const traceText = trace
-    .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload.text}`)
+    .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
     .join('\n\n');
 
   const systemInstruction =
