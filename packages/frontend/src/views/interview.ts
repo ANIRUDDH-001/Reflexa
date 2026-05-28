@@ -89,7 +89,20 @@ export function renderInterview(container: HTMLElement): void {
   input.placeholder = 'Type your response...';
   input.rows = 1;
 
-  const sendBtn = createButton({ label: '', icon: 'send', variant: 'primary' });
+  const sendBtn = createButton({
+    label: '',
+    icon: 'send',
+    variant: 'primary',
+    onClick: () => {
+      import('../components/toast').then(({ showToast }) => {
+        showToast({
+          title: 'Not connected',
+          message: 'The AI backend is not connected yet.',
+          type: 'warning',
+        });
+      });
+    },
+  });
   sendBtn.setAttribute('aria-label', 'Send message');
 
   composerInner.appendChild(input);

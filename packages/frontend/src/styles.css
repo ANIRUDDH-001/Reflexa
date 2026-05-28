@@ -1050,7 +1050,52 @@ pre {
 }
 
 /* ==========================================================================
- * 10. INTERVIEW UI
+ * 10. TOAST NOTIFICATIONS
+ * ========================================================================== */
+
+.toast-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  z-index: 9999;
+  max-width: 400px;
+  width: calc(100vw - var(--space-12));
+}
+
+@media (max-width: 768px) {
+  .toast-container {
+    bottom: var(--space-4);
+    right: var(--space-4);
+    width: calc(100vw - var(--space-8));
+  }
+}
+
+.toast {
+  animation: slideInUp 0.3s ease both;
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+}
+
+.toast.toast--exit {
+  animation: fadeOutDown 0.3s ease both;
+}
+
+@keyframes fadeOutDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ==========================================================================
+ * 11. INTERVIEW UI
  * ========================================================================== */
 
 .interview-layout {
