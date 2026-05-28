@@ -1,4 +1,5 @@
 import { createButton } from '../components/button';
+import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 
 // --- State ---
@@ -141,12 +142,10 @@ export function renderSession(container: HTMLElement): void {
             currentStep++;
             render();
           } else {
-            import('../components/toast').then(({ showToast }) => {
-              showToast({
-                title: 'Incomplete',
-                message: 'Please select all required options.',
-                type: 'warning',
-              });
+            showToast({
+              title: 'Incomplete',
+              message: 'Please select all required options.',
+              type: 'warning',
             });
           }
         },
