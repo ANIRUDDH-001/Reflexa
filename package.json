@@ -41,14 +41,5 @@
       "prettier --write"
     ]
   },
-  "prepare": "husky install",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@google/genai",
-      "better-sqlite3",
-      "esbuild",
-      "protobufjs",
-      "unrs-resolver"
-    ]
-  }
+  "prepare": "husky install"
 }
