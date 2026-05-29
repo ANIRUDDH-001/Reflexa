@@ -23,7 +23,7 @@ COPY packages/shared ./packages/shared
 
 # Build shared first, then backend
 RUN pnpm --filter @reflexa/shared run build
-RUN pnpm --filter @reflexa/backend run build
+RUN pnpm --filter reflexa-backend run build
 
 # ── Production stage ───────────────────────────────────────────
 FROM node:22-alpine AS production
