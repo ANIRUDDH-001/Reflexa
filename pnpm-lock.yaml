@@ -93,7 +93,7 @@ importers:
         specifier: ^1.41.1
         version: 1.41.1
       '@reflexa/shared':
-        specifier: workspace:*
+        specifier: file:../shared
         version: link:../shared
       '@supabase/supabase-js':
         specifier: ^2.45.0
@@ -163,7 +163,7 @@ importers:
   packages/frontend:
     dependencies:
       '@reflexa/shared':
-        specifier: workspace:*
+        specifier: file:../shared
         version: link:../shared
     devDependencies:
       typescript:
