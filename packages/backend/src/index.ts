@@ -72,7 +72,7 @@ function updateSessionPhase(session: BackendSessionState): void {
   }
 }
 
-const app = express();
+const app: express.Application = express();
 
 // Trust Cloud Run's load balancer — required for correct IP detection
 // and for express-rate-limit to work correctly behind Google's proxy.
