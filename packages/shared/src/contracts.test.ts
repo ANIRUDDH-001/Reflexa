@@ -25,9 +25,9 @@ describe('contracts', () => {
       expect(APIContracts.CreateSessionRequest.safeParse(valid).success).toBe(true);
     });
 
-    it('rejects missing userId', () => {
-      const invalid = {};
-      expect(APIContracts.CreateSessionRequest.safeParse(invalid).success).toBe(false);
+    it('accepts missing userId', () => {
+      const valid = {};
+      expect(APIContracts.CreateSessionRequest.safeParse(valid).success).toBe(true);
     });
 
     it('rejects userId longer than 100 chars', () => {

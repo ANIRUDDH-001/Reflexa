@@ -87,6 +87,17 @@ const httpLogger = pinoHttp({
 app.use(helmet());
 app.use(httpLogger);
 
+// Health check — Cloud Run calls this to verify the container is alive.
+// Must be registered BEFORE the rate limiter to avoid rate-limiting health checks.
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'reflexa-backend',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version ?? '0.0.0',
+  });
+});
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -109,15 +120,6 @@ app.use(
   }),
 );
 app.use(express.json());
-
-app.get('/health', (_req: Request, res: Response) => {
-  const payload = { status: 'ok' as const, ts: new Date().toISOString() };
-  const parsed = APIContracts.HealthResponse.safeParse(payload);
-  if (!parsed.success) {
-    return res.status(500).json({ error: 'contract mismatch', details: parsed.error.format() });
-  }
-  return res.json(payload);
-});
 
 // Start a new session
 app.post('/session', async (req: Request, res: Response) => {
@@ -471,9 +473,19 @@ app.get('/session/:id/compare', async (req: Request, res: Response) => {
   return res.json({ comparison });
 });
 
-app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  logger.error(err);
-  res.status(500).json({ error: 'Internal Server Error' });
+// ── 404 catch-all ─────────────────────────────────────────────
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });
+});
+
+// ── Global error handler ───────────────────────────────────────
+// Catches any error thrown inside a route handler that reaches here.
+// Prevents Express from returning HTML error pages to API clients.
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const message = err instanceof Error ? err.message : 'Internal server error';
+  const stack = err instanceof Error ? err.stack : undefined;
+  logger.error({ err, stack }, '[global] Unhandled route error');
+  res.status(500).json({ error: 'Internal server error', detail: message });
 });
 
 // Export app for supertest integration tests

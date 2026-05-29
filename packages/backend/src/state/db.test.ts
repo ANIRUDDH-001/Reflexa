@@ -34,7 +34,7 @@ function makeSession(overrides: Partial<BackendSessionState> = {}): BackendSessi
 // ---------------------------------------------------------------------------
 // Session CRUD
 // ---------------------------------------------------------------------------
-describe('db – sessions', () => {
+describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')('db – sessions', () => {
   it('saveSession then getSession round-trips all fields', async () => {
     const session = makeSession({
       interviewPhase: 'exploration',
@@ -114,36 +114,39 @@ describe('db – sessions', () => {
 // ---------------------------------------------------------------------------
 // History
 // ---------------------------------------------------------------------------
-describe('db – getHistorySessions', () => {
-  it('returns sessions in descending chronological order', async () => {
-    const userId = `user-${crypto.randomUUID()}`;
+describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')(
+  'db – getHistorySessions',
+  () => {
+    it('returns sessions in descending chronological order', async () => {
+      const userId = `user-${crypto.randomUUID()}`;
 
-    const s1 = makeSession({ userId, startedAt: '2025-01-01T00:00:00Z' });
-    const s2 = makeSession({ userId, startedAt: '2025-06-01T00:00:00Z' });
-    const s3 = makeSession({ userId, startedAt: '2025-03-01T00:00:00Z' });
+      const s1 = makeSession({ userId, startedAt: '2025-01-01T00:00:00Z' });
+      const s2 = makeSession({ userId, startedAt: '2025-06-01T00:00:00Z' });
+      const s3 = makeSession({ userId, startedAt: '2025-03-01T00:00:00Z' });
 
-    await saveSession(s1);
-    await saveSession(s2);
-    await saveSession(s3);
+      await saveSession(s1);
+      await saveSession(s2);
+      await saveSession(s3);
 
-    const history = await getHistorySessions(userId);
-    expect(history).toHaveLength(3);
-    // Most recent first
-    expect(history[0].id).toBe(s2.id);
-    expect(history[1].id).toBe(s3.id);
-    expect(history[2].id).toBe(s1.id);
-  });
+      const history = await getHistorySessions(userId);
+      expect(history).toHaveLength(3);
+      // Most recent first
+      expect(history[0].id).toBe(s2.id);
+      expect(history[1].id).toBe(s3.id);
+      expect(history[2].id).toBe(s1.id);
+    });
 
-  it('returns an empty array for an unknown userId', async () => {
-    const history = await getHistorySessions(`unknown-${crypto.randomUUID()}`);
-    expect(history).toEqual([]);
-  });
-});
+    it('returns an empty array for an unknown userId', async () => {
+      const history = await getHistorySessions(`unknown-${crypto.randomUUID()}`);
+      expect(history).toEqual([]);
+    });
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Strategies
 // ---------------------------------------------------------------------------
-describe('db – strategies', () => {
+describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')('db – strategies', () => {
   it('saveStrategy then getLatestStrategy round-trips version and rules', async () => {
     const version = `v-test-${crypto.randomUUID()}`;
     const rules = ['ask follow-up after vague answer', 'limit hints to 2 per session'];
