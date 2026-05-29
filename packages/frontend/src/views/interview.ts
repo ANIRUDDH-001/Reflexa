@@ -1,10 +1,13 @@
-import { api } from '../api';
+import { api, sendTurnStream } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { createProgress } from '../components/progress';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
+
+// Phoenix Cloud base URL for trace links
+const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
 
 interface Message {
   id: string;
@@ -150,103 +153,204 @@ export async function renderInterview(
   layout.appendChild(sidebar);
   container.appendChild(layout);
 
-  // --- Logic ---
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+
+  function buildMessageEl(msg: Message): HTMLElement {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'message message--' + msg.role + (msg.isError ? ' message--error' : '');
+    msgEl.dataset.messageId = msg.id;
+
+    const traceHtml =
+      msg.traceId && msg.traceId !== 'unknown'
+        ? `<div class="trace-link-wrap">
+             <a class="trace-link" href="${PHOENIX_TRACE_BASE}/${msg.traceId}" target="_blank" rel="noopener noreferrer">
+               🔍 View in Phoenix
+             </a>
+           </div>`
+        : '';
+
+    msgEl.innerHTML = `
+      <div class="message__avatar"><i data-lucide="${msg.role === 'ai' ? 'bot' : 'user'}"></i></div>
+      <div class="message__content">
+        <div class="message__bubble">${msg.text}${traceHtml}</div>
+      </div>
+    `;
+    return msgEl;
+  }
+
+  function showTypingIndicator(): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'message message--ai';
+    el.id = 'typing-indicator';
+    el.innerHTML = `
+      <div class="message__avatar"><i data-lucide="bot"></i></div>
+      <div class="message__content">
+        <div class="message__bubble">
+          <div class="typing-indicator">
+            <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    messagesContainer.appendChild(el);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    refreshIcons();
+    return el;
+  }
+
+  // ── Streaming send handler ────────────────────────────────────────────────
   const handleSend = async () => {
     const text = input.value.trim();
     if (!text || isThinking || isPaused || !currentSessionId) return;
 
+    // Disable input and clear
     input.value = '';
     input.style.height = 'auto';
-    messages.push({ id: Date.now().toString(), role: 'user', text });
-
     isThinking = true;
-    updateState();
+    setComposerDisabled(true);
+
+    // Optimistically render user bubble
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text };
+    messages.push(userMsg);
+    messagesContainer.appendChild(buildMessageEl(userMsg));
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Typing indicator
+    const typingEl = showTypingIndicator();
+
+    // Streaming AI bubble
+    const aiBubbleId = (Date.now() + 1).toString();
+    let aiBubble: HTMLElement | null = null;
+    let fullText = '';
+    let hasStarted = false;
 
     try {
-      const response = await api.submitTurn(currentSessionId, text);
-      messages.push({
-        id: Date.now().toString(),
-        role: 'ai',
-        text: response.text,
-        traceId: response.traceId,
-      });
-    } catch (e) {
-      messages.push({
-        id: Date.now().toString(),
-        role: 'ai',
-        text: 'Failed to process turn.',
-        isError: true,
+      for await (const event of sendTurnStream(currentSessionId, text)) {
+        if (event.type === 'token') {
+          if (!hasStarted) {
+            // First token: swap typing indicator for the real bubble
+            typingEl.remove();
+            aiBubble = document.createElement('div');
+            aiBubble.className = 'message message--ai';
+            aiBubble.dataset.messageId = aiBubbleId;
+            aiBubble.innerHTML = `
+              <div class="message__avatar"><i data-lucide="bot"></i></div>
+              <div class="message__content">
+                <div class="message__bubble" id="streaming-bubble-text"></div>
+              </div>
+            `;
+            messagesContainer.appendChild(aiBubble);
+            refreshIcons();
+            hasStarted = true;
+          }
+          fullText += event.text;
+          const bubbleText = aiBubble?.querySelector('#streaming-bubble-text');
+          if (bubbleText) bubbleText.textContent = fullText;
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } else if (event.type === 'done') {
+          // Finalise: remove the temp streaming ID, push to messages array
+          if (aiBubble) {
+            const textEl = aiBubble.querySelector('#streaming-bubble-text');
+            if (textEl) textEl.removeAttribute('id');
+
+            // Append Phoenix trace link
+            if (event.traceId && event.traceId !== 'unknown') {
+              const linkWrap = document.createElement('div');
+              linkWrap.className = 'trace-link-wrap';
+              const link = document.createElement('a');
+              link.className = 'trace-link';
+              link.href = `${PHOENIX_TRACE_BASE}/${event.traceId}`;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = '🔍 View in Phoenix';
+              linkWrap.appendChild(link);
+              aiBubble.querySelector('.message__bubble')?.appendChild(linkWrap);
+            }
+          }
+
+          messages.push({
+            id: aiBubbleId,
+            role: 'ai',
+            text: fullText,
+            traceId: event.traceId,
+          });
+
+          // Update sidebar turn counter
+          const progressEl = document.getElementById('progress-content');
+          if (progressEl) {
+            progressEl.innerHTML = '';
+            currentScore = Math.min(currentScore + 5, 100); // incremental hint
+            progressEl.appendChild(
+              createProgress({
+                value: event.turnCount,
+                max: 20,
+                label: `Turn ${event.turnCount} • Phase: ${event.phase}`,
+              }),
+            );
+          }
+
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } else if (event.type === 'error') {
+          typingEl.remove();
+          aiBubble?.remove();
+          showToast({ title: 'AI Error', message: event.message, type: 'error' });
+        }
+      }
+    } catch (err) {
+      typingEl.remove();
+      aiBubble?.remove();
+      showToast({
+        title: 'Connection Lost',
+        message: 'Check your network and try again.',
+        type: 'error',
       });
     } finally {
       isThinking = false;
-      updateState();
+      setComposerDisabled(false);
+      input.focus();
     }
   };
 
-  const updateState = () => {
-    messagesContainer.innerHTML = '';
-    messages.forEach((msg) => {
-      const msgEl = document.createElement('div');
-      msgEl.className = 'message message--' + msg.role + (msg.isError ? ' message--error' : '');
-      msgEl.innerHTML = `
-        <div class="message__avatar"><i data-lucide="${
-          msg.role === 'ai' ? 'bot' : 'user'
-        }"></i></div>
-        <div class="message__content">
-          <div class="message__bubble">
-            ${msg.text}
-            ${
-              msg.traceId
-                ? `<div style="margin-top: 8px; font-size: 11px; opacity: 0.6;"><a href="http://localhost:6006/traces/${
-                    msg.traceId
-                  }" target="_blank" style="color: inherit; text-decoration: underline;">View Trace (${msg.traceId.slice(
-                    0,
-                    8,
-                  )})</a></div>`
-                : ''
-            }
-          </div>
-        </div>
-      `;
-      messagesContainer.appendChild(msgEl);
-    });
-
-    if (isThinking) {
-      const typingEl = document.createElement('div');
-      typingEl.className = 'message message--ai';
-      typingEl.innerHTML = `
-        <div class="message__avatar"><i data-lucide="bot"></i></div>
-        <div class="message__content">
-          <div class="message__bubble">
-            <div class="typing-indicator">
-              <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-            </div>
-          </div>
-        </div>
-      `;
-      messagesContainer.appendChild(typingEl);
-    }
-
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-    if (isThinking || isPaused) {
+  function setComposerDisabled(disabled: boolean): void {
+    if (disabled) {
       composer.classList.add('composer--disabled');
       input.disabled = true;
       sendBtn.setAttribute('disabled', 'true');
-      input.placeholder = isPaused ? 'Session Suspended' : 'AI is analyzing your response...';
+      input.placeholder = 'AI is analyzing your response...';
     } else {
       composer.classList.remove('composer--disabled');
       input.disabled = false;
       sendBtn.removeAttribute('disabled');
       input.placeholder = 'Type your response...';
-      input.focus();
+    }
+  }
+
+  const updateState = () => {
+    // Re-render all persisted messages (used on initial load and pause toggle)
+    messagesContainer.innerHTML = '';
+    messages.forEach((msg) => {
+      messagesContainer.appendChild(buildMessageEl(msg));
+    });
+
+    if (isThinking) {
+      showTypingIndicator();
+    }
+
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    if (isPaused) {
+      composer.classList.add('composer--disabled');
+      input.disabled = true;
+      sendBtn.setAttribute('disabled', 'true');
+      input.placeholder = 'Session Suspended';
+    } else if (!isThinking) {
+      setComposerDisabled(false);
     }
 
     pauseBtn.innerHTML = isPaused
       ? '<i data-lucide="play-circle"></i><span>Resume</span>'
       : '<i data-lucide="pause-circle"></i><span>Suspend</span>';
 
-    // update progress
     const progressEl = document.getElementById('progress-content');
     if (progressEl) {
       progressEl.innerHTML = '';

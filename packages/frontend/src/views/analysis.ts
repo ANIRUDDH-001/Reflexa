@@ -4,6 +4,8 @@ import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { refreshIcons } from '../lucide';
 
+const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
+
 let isComparing = false;
 let currentSessionId: string | null = null;
 
@@ -64,7 +66,7 @@ export async function renderAnalysis(
       <div class="flex gap-2">
         ${
           session.evalTraceId
-            ? `<a href="http://localhost:6006/traces/${session.evalTraceId}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
+            ? `<a href="${PHOENIX_TRACE_BASE}/${session.evalTraceId}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
                 <i data-lucide="external-link"></i>
                 <span>View Full Trace</span>
               </a>`

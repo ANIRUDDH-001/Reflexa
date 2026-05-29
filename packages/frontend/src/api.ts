@@ -1,41 +1,59 @@
+/* eslint-disable no-console */
 // @ts-expect-error import.meta is injected by Vite
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-import type { SessionConfig } from '@reflexa/shared';
+import type { SessionConfig, TurnStreamEvent } from '@reflexa/shared';
+
+// ── Lazily resolved to avoid circular import at module init time ──────────────
+// CURRENT_USER_ID is set in main.ts before any route is rendered.
+let _userId = '';
+export function setCurrentUserId(id: string): void {
+  _userId = id;
+}
+
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': _userId,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
 
 export const api = {
   async createSession(config: SessionConfig) {
-    const res = await fetch(`${API_BASE}/session`, {
+    const res = await apiFetch('/session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: 'demo-user', config }),
+      body: JSON.stringify({ config }),
     });
     if (!res.ok) throw new Error('Failed to create session');
     return res.json();
   },
 
   async getSession(id: string) {
-    const res = await fetch(`${API_BASE}/session/${id}`);
+    const res = await apiFetch(`/session/${id}`);
     if (!res.ok) throw new Error('Failed to fetch session');
     return res.json();
   },
 
-  async getSessions(userId: string = 'demo-user') {
-    const res = await fetch(`${API_BASE}/sessions?userId=${userId}`);
+  async getSessions() {
+    // userId comes from X-User-Id header via apiFetch
+    const res = await apiFetch('/sessions');
     if (!res.ok) throw new Error('Failed to fetch sessions');
     return res.json();
   },
 
   async getComparison(id: string) {
-    const res = await fetch(`${API_BASE}/session/${id}/compare`);
+    const res = await apiFetch(`/session/${id}/compare`);
     if (!res.ok) throw new Error('Failed to fetch comparison');
     return res.json();
   },
 
   async submitTurn(id: string, text: string) {
-    const res = await fetch(`${API_BASE}/session/${id}/turn`, {
+    const res = await apiFetch(`/session/${id}/turn`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     });
     if (!res.ok) throw new Error('Failed to submit turn');
@@ -43,12 +61,58 @@ export const api = {
   },
 
   async endSession(id: string) {
-    const res = await fetch(`${API_BASE}/session/${id}/end`, {
+    const res = await apiFetch(`/session/${id}/end`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
     if (!res.ok) throw new Error('Failed to end session');
     return res.json();
   },
 };
+
+/**
+ * Streaming turn via SSE.
+ * Yields TurnStreamEvent objects as they arrive from the backend.
+ */
+export async function* sendTurnStream(
+  sessionId: string,
+  text: string,
+): AsyncGenerator<TurnStreamEvent> {
+  const response = await apiFetch(`/session/${sessionId}/turn/stream`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+    yield {
+      type: 'error',
+      message: (err as { error?: string }).error ?? `HTTP ${response.status}`,
+    };
+    return;
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') return;
+      try {
+        yield JSON.parse(raw) as TurnStreamEvent;
+      } catch {
+        // Malformed SSE line — skip
+      }
+    }
+  }
+}
