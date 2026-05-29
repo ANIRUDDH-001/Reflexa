@@ -31,10 +31,23 @@ export function createShell(root: HTMLElement): HTMLElement {
   sidebar.setAttribute('role', 'navigation');
   sidebar.setAttribute('aria-label', 'Main navigation');
 
+  // Sidebar toggle button
+  const toggle = document.createElement('button');
+  toggle.className = 'sidebar__toggle';
+  toggle.setAttribute('aria-label', 'Toggle sidebar');
+  toggle.innerHTML = `<i data-lucide="panel-left-close"></i>`;
+  toggle.addEventListener('click', () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    updateSidebarState(sidebar, mainArea, toggle);
+  });
+
   // Sidebar header
   const header = document.createElement('div');
   header.className = 'sidebar__header';
-  header.innerHTML = `
+
+  const logoWrapper = document.createElement('div');
+  logoWrapper.className = 'sidebar__logo-wrapper';
+  logoWrapper.innerHTML = `
     <div class="sidebar__logo">
       <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="28" height="28" rx="8" fill="var(--color-accent)"/>
@@ -43,6 +56,8 @@ export function createShell(root: HTMLElement): HTMLElement {
       <span class="sidebar__brand">Reflexa</span>
     </div>
   `;
+  header.appendChild(logoWrapper);
+  header.appendChild(toggle);
   sidebar.appendChild(header);
 
   // Navigation
@@ -66,17 +81,6 @@ export function createShell(root: HTMLElement): HTMLElement {
   });
 
   sidebar.appendChild(nav);
-
-  // Sidebar toggle button
-  const toggle = document.createElement('button');
-  toggle.className = 'sidebar__toggle';
-  toggle.setAttribute('aria-label', 'Toggle sidebar');
-  toggle.innerHTML = `<i data-lucide="panel-left-close"></i>`;
-  toggle.addEventListener('click', () => {
-    sidebarCollapsed = !sidebarCollapsed;
-    updateSidebarState(sidebar, mainArea, toggle);
-  });
-  sidebar.appendChild(toggle);
 
   root.appendChild(sidebar);
 

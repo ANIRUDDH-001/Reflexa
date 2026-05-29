@@ -6,6 +6,8 @@ import { refreshIcons } from '../lucide';
 // --- State ---
 let currentStep = 1;
 const totalSteps = 4;
+let attemptedStep1 = false;
+let attemptedStep2 = false;
 
 interface SessionConfig {
   role: string | null;
@@ -28,7 +30,8 @@ const ROLE_OPTIONS = [
   { id: 'frontend', label: 'Frontend Engineer', icon: 'layout' },
   { id: 'backend', label: 'Backend Engineer', icon: 'server' },
   { id: 'fullstack', label: 'Fullstack Engineer', icon: 'layers' },
-  { id: 'mobile', label: 'Mobile Engineer', icon: 'smartphone' },
+  { id: 'android', label: 'Android Developer', icon: 'smartphone' },
+  { id: 'ai', label: 'AI Engineer', icon: 'cpu' },
   { id: 'devops', label: 'DevOps / SRE', icon: 'terminal' },
 ];
 
@@ -63,10 +66,10 @@ const STYLE_OPTIONS = [
 ];
 
 const TIME_OPTIONS = [
-  { id: '15', label: '15 Mins', desc: 'Quick warm-up' },
-  { id: '30', label: '30 Mins', desc: 'Standard practice' },
-  { id: '45', label: '45 Mins', desc: 'Deep dive' },
-  { id: '60', label: '60 Mins', desc: 'Full simulation' },
+  { id: '5', label: '5 Mins', desc: 'Lightning round' },
+  { id: '10', label: '10 Mins', desc: 'Quick check' },
+  { id: '20', label: '20 Mins', desc: 'Standard practice' },
+  { id: '30', label: '30 Mins', desc: 'Deep dive' },
 ];
 
 const FOCUS_OPTIONS = [
@@ -84,6 +87,8 @@ const FOCUS_OPTIONS = [
 export function renderSession(container: HTMLElement): void {
   // Reset state on load
   currentStep = 1;
+  attemptedStep1 = false;
+  attemptedStep2 = false;
   config = { role: null, difficulty: null, style: null, timeLimit: null, focusAreas: [] };
 
   const render = () => {
@@ -139,10 +144,14 @@ export function renderSession(container: HTMLElement): void {
         label: 'Next Step',
         variant: 'primary',
         onClick: () => {
+          if (currentStep === 1) attemptedStep1 = true;
+          if (currentStep === 2) attemptedStep2 = true;
+
           if (validateStep(currentStep)) {
             currentStep++;
             render();
           } else {
+            render(); // re-render to show inline validation errors
             showToast({
               title: 'Incomplete',
               message: 'Please select all required options.',
@@ -208,9 +217,15 @@ function renderStep1(reRender: () => void): HTMLElement {
   wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Target Discipline & Experience</h3>`;
 
   const roleSection = document.createElement('div');
-  roleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select target discipline</p>`;
+  const roleError =
+    attemptedStep1 && !config.role
+      ? `<div class="error-text mb-2">Please select a discipline</div>`
+      : '';
+  roleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select target discipline</p>${roleError}`;
   const roleGrid = document.createElement('div');
-  roleGrid.className = 'wizard-grid wizard-grid--3col';
+  roleGrid.className = `wizard-grid wizard-grid--3col ${
+    attemptedStep1 && !config.role ? 'error-border' : ''
+  }`;
 
   ROLE_OPTIONS.forEach((opt) => {
     roleGrid.appendChild(
@@ -223,9 +238,16 @@ function renderStep1(reRender: () => void): HTMLElement {
   roleSection.appendChild(roleGrid);
 
   const diffSection = document.createElement('div');
-  diffSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select experience tier</p>`;
+  diffSection.className = 'mt-6';
+  const diffError =
+    attemptedStep1 && !config.difficulty
+      ? `<div class="error-text mb-2">Please select an experience tier</div>`
+      : '';
+  diffSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select experience tier</p>${diffError}`;
   const diffGrid = document.createElement('div');
-  diffGrid.className = 'wizard-grid wizard-grid--2col';
+  diffGrid.className = `wizard-grid wizard-grid--2col ${
+    attemptedStep1 && !config.difficulty ? 'error-border' : ''
+  }`;
 
   DIFFICULTY_OPTIONS.forEach((opt) => {
     diffGrid.appendChild(
@@ -248,9 +270,15 @@ function renderStep2(reRender: () => void): HTMLElement {
   wrapper.innerHTML = `<h3 class="text-lg font-semibold mb-4">Evaluation Format & Duration</h3>`;
 
   const styleSection = document.createElement('div');
-  styleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select evaluation mode</p>`;
+  const styleError =
+    attemptedStep2 && !config.style
+      ? `<div class="error-text mb-2">Please select an evaluation mode</div>`
+      : '';
+  styleSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Select evaluation mode</p>${styleError}`;
   const styleGrid = document.createElement('div');
-  styleGrid.className = 'wizard-grid wizard-grid--2col';
+  styleGrid.className = `wizard-grid wizard-grid--2col ${
+    attemptedStep2 && !config.style ? 'error-border' : ''
+  }`;
 
   STYLE_OPTIONS.forEach((opt) => {
     styleGrid.appendChild(
@@ -263,9 +291,16 @@ function renderStep2(reRender: () => void): HTMLElement {
   styleSection.appendChild(styleGrid);
 
   const timeSection = document.createElement('div');
-  timeSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Session duration</p>`;
+  timeSection.className = 'mt-6';
+  const timeError =
+    attemptedStep2 && !config.timeLimit
+      ? `<div class="error-text mb-2">Please select a session duration</div>`
+      : '';
+  timeSection.innerHTML = `<p class="text-sm font-medium text-gray-700 mb-3">Session duration</p>${timeError}`;
   const timeGrid = document.createElement('div');
-  timeGrid.className = 'wizard-grid wizard-grid--4col';
+  timeGrid.className = `wizard-grid wizard-grid--4col ${
+    attemptedStep2 && !config.timeLimit ? 'error-border' : ''
+  }`;
 
   TIME_OPTIONS.forEach((opt) => {
     timeGrid.appendChild(

@@ -182,11 +182,26 @@ export async function* processTurnStream(
       const stream = await chat.sendMessageStream({ message: userMessage });
 
       let fullText = '';
+      let streamedMessageLength = 0;
+
       for await (const chunk of stream) {
         const token = chunk.text ?? '';
         if (token) {
           fullText += token;
-          yield { type: 'token', text: token };
+
+          const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
+          if (match) {
+            const extractedText = match[1];
+            if (extractedText.length > streamedMessageLength) {
+              const newToken = extractedText.substring(streamedMessageLength);
+              const unescapedToken = newToken
+                .replace(/\\n/g, '\n')
+                .replace(/\\"/g, '"')
+                .replace(/\\\\/g, '\\');
+              yield { type: 'token', text: unescapedToken };
+              streamedMessageLength = extractedText.length;
+            }
+          }
         }
       }
 
@@ -194,20 +209,16 @@ export async function* processTurnStream(
       return; // Success — stop trying fallback models
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      // Rate-limit / quota — silently try next model
-      if (
-        message.includes('429') ||
-        message.includes('quota') ||
-        message.includes('RESOURCE_EXHAUSTED')
-      ) {
-        continue;
-      }
-      yield { type: 'error', message: `Model ${modelId} failed: ${message}` };
-      return;
+      // Fallback silently for any error (e.g. 503, 429, quota, 500)
+      console.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
+      continue;
     }
   }
 
-  yield { type: 'error', message: 'All fallback models exhausted — no response generated.' };
+  yield {
+    type: 'error',
+    message: 'All fallback models exhausted or unavailable — no response generated.',
+  };
 }
 
 export interface EvaluationResultData {
