@@ -43,6 +43,12 @@
   },
   "prepare": "husky install",
   "pnpm": {
-    "onlyBuiltDependencies": []
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "better-sqlite3",
+      "esbuild",
+      "protobufjs",
+      "unrs-resolver"
+    ]
   }
 }
