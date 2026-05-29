@@ -1,5 +1,5 @@
 # ── Build stage ────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN pnpm --filter @reflexa/shared run build
 RUN pnpm --filter reflexa-backend run build
 
 # ── Production stage ───────────────────────────────────────────
-FROM node:22-alpine AS production
+FROM node:22-slim AS production
 
 WORKDIR /app
 
