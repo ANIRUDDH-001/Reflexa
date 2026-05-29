@@ -7,11 +7,10 @@ import 'dotenv/config';
 const tracer = trace.getTracer('reflexa-agent');
 
 const MODELS = [
-  'gemini-3.5-flash', // GA May 2026 — primary model
-  'gemini-3.1-pro', // reasoning-first, complex tasks
-  'gemini-3.1-flash-lite', // GA — fast and cost-efficient
-  'gemini-2.5-flash', // stable fallback
-  'gemini-2.5-flash-lite', // cost-efficient last resort
+  'gemini-2.5-flash', // GA — stable, fast primary
+  'gemini-2.5-pro', // premium reasoning fallback
+  'gemini-2.0-flash', // older stable fallback
+  'gemini-2.0-flash-lite', // cost-efficient last resort
 ];
 
 export function getGoogleApiKey(): string {
@@ -170,7 +169,8 @@ export async function* processTurnStream(
         config: {
           systemInstruction,
           temperature: 0.7,
-          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+          responseSchema,
         },
         history,
       });
@@ -179,37 +179,55 @@ export async function* processTurnStream(
       const activeSpan = trace.getActiveSpan();
       const traceId = activeSpan?.spanContext().traceId ?? 'unknown';
 
-      const stream = await chat.sendMessageStream({ message: userMessage });
+      // Add a 15-second timeout per model attempt
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
-      let fullText = '';
-      let streamedMessageLength = 0;
+      try {
+        const stream = await chat.sendMessageStream({ message: userMessage });
 
-      for await (const chunk of stream) {
-        const token = chunk.text ?? '';
-        if (token) {
-          fullText += token;
+        let fullText = '';
+        let streamedMessageLength = 0;
 
-          const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
-          if (match) {
-            const extractedText = match[1];
-            if (extractedText.length > streamedMessageLength) {
-              const newToken = extractedText.substring(streamedMessageLength);
-              const unescapedToken = newToken
-                .replace(/\\n/g, '\n')
-                .replace(/\\"/g, '"')
-                .replace(/\\\\/g, '\\');
-              yield { type: 'token', text: unescapedToken };
-              streamedMessageLength = extractedText.length;
+        for await (const chunk of stream) {
+          if (controller.signal.aborted) throw new Error('Model timeout after 15s');
+          const token = chunk.text ?? '';
+          if (token) {
+            fullText += token;
+
+            const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
+            if (match) {
+              const extractedText = match[1];
+              if (extractedText.length > streamedMessageLength) {
+                const newToken = extractedText.substring(streamedMessageLength);
+                const unescapedToken = newToken
+                  .replace(/\\n/g, '\n')
+                  .replace(/\\"/g, '"')
+                  .replace(/\\\\/g, '\\');
+                yield { type: 'token', text: unescapedToken };
+                streamedMessageLength = extractedText.length;
+              }
             }
           }
         }
-      }
 
-      yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
-      return; // Success — stop trying fallback models
+        // Extract clean agentMessage for trace storage
+        let cleanText = fullText;
+        try {
+          const parsed = JSON.parse(fullText);
+          if (parsed.agentMessage) cleanText = parsed.agentMessage;
+        } catch {
+          // If JSON parsing fails, use raw text
+        }
+
+        yield { type: 'done', fullText: cleanText, traceId, phase: state.interviewPhase };
+        return; // Success — stop trying fallback models
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      // Fallback silently for any error (e.g. 503, 429, quota, 500)
+      // Fallback silently for any error (e.g. 503, 429, quota, 500, timeout)
       console.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
       continue;
     }

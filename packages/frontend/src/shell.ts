@@ -31,6 +31,35 @@ export function createShell(root: HTMLElement): HTMLElement {
   sidebar.setAttribute('role', 'navigation');
   sidebar.setAttribute('aria-label', 'Main navigation');
 
+  // Sidebar header
+  const header = document.createElement('div');
+  header.className = 'sidebar__header';
+
+  const logoWrapper = document.createElement('div');
+  logoWrapper.className = 'sidebar__logo-wrapper';
+
+  const logoLink = document.createElement('div');
+  logoLink.className = 'sidebar__logo';
+  logoLink.setAttribute('role', 'button');
+  logoLink.setAttribute('aria-label', 'Go to home');
+  logoLink.addEventListener('click', () => {
+    navigate('/');
+    if (mobileOpen) toggleMobileSidebar(false);
+  });
+
+  const logoImg = document.createElement('img');
+  logoImg.src = '/logo.png';
+  logoImg.alt = 'Reflexa';
+  logoImg.className = 'sidebar__logo-img';
+
+  const brandText = document.createElement('span');
+  brandText.className = 'sidebar__brand';
+  brandText.textContent = 'Reflexa';
+
+  logoLink.appendChild(logoImg);
+  logoLink.appendChild(brandText);
+  logoWrapper.appendChild(logoLink);
+
   // Sidebar toggle button
   const toggle = document.createElement('button');
   toggle.className = 'sidebar__toggle';
@@ -41,21 +70,6 @@ export function createShell(root: HTMLElement): HTMLElement {
     updateSidebarState(sidebar, mainArea, toggle);
   });
 
-  // Sidebar header
-  const header = document.createElement('div');
-  header.className = 'sidebar__header';
-
-  const logoWrapper = document.createElement('div');
-  logoWrapper.className = 'sidebar__logo-wrapper';
-  logoWrapper.innerHTML = `
-    <div class="sidebar__logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="28" height="28" rx="8" fill="var(--color-accent)"/>
-        <path d="M8 10h12M8 14h8M8 18h10" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      <span class="sidebar__brand">Reflexa</span>
-    </div>
-  `;
   header.appendChild(logoWrapper);
   header.appendChild(toggle);
   sidebar.appendChild(header);
@@ -94,6 +108,9 @@ export function createShell(root: HTMLElement): HTMLElement {
   topBar.className = 'top-bar';
   topBar.innerHTML = `
     <div class="top-bar__left">
+      <button class="sidebar-expand-trigger" id="expand-sidebar" aria-label="Expand sidebar">
+        <i data-lucide="panel-left-open"></i>
+      </button>
       <button class="top-bar__hamburger" id="hamburger" aria-label="Open menu">
         <i data-lucide="menu"></i>
       </button>
@@ -108,10 +125,16 @@ export function createShell(root: HTMLElement): HTMLElement {
   `;
   mainArea.appendChild(topBar);
 
-  // Hamburger click
+  // Hamburger click + expand sidebar click
   setTimeout(() => {
     const hamburger = document.getElementById('hamburger');
     hamburger?.addEventListener('click', () => toggleMobileSidebar(true));
+
+    const expandBtn = document.getElementById('expand-sidebar');
+    expandBtn?.addEventListener('click', () => {
+      sidebarCollapsed = false;
+      updateSidebarState(sidebar, mainArea, toggle);
+    });
   }, 0);
 
   // Content container for router

@@ -55,8 +55,11 @@ function extractUserId(req: Request): string | null {
 // Time-aware phase transitions based on configured session length.
 function updateSessionPhase(session: BackendSessionState): void {
   const PHASE_TURNS: Record<string, [number, number]> = {
+    '5': [1, 3],
+    '10': [2, 5],
     '15': [2, 5],
-    '30': [2, 7],
+    '20': [2, 7],
+    '30': [3, 9],
     '45': [3, 9],
     '60': [3, 12],
   };
