@@ -12,5 +12,13 @@
     "no-console": "warn",
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
     "import/order": ["error", { "alphabetize": { "order": "asc" } }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/frontend/src/views/*.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
 }

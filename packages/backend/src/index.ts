@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import './telemetry';
 import { trace } from '@opentelemetry/api';
 import { APIContracts } from '@reflexa/shared';
@@ -19,7 +20,27 @@ import {
 } from './state/db';
 import { BackendSessionState } from './state/types';
 
-const generateId = () => Math.random().toString(36).substring(2, 11);
+// ── Startup env validation ─────────────────────────────────────
+// Fail fast if required environment variables are missing.
+// This prevents silent failures buried in LLM call stack traces.
+const REQUIRED_ENV_VARS = [
+  'GOOGLE_API_KEY',
+  'PHOENIX_API_KEY',
+  'PHOENIX_COLLECTOR_ENDPOINT',
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+];
+
+for (const key of REQUIRED_ENV_VARS) {
+  if (!process.env[key]) {
+    // eslint-disable-next-line no-console
+    console.error(`[Reflexa] Missing required environment variable: ${key}`);
+    process.exit(1);
+  }
+}
+// ── End env validation ─────────────────────────────────────────
+
+const generateId = () => randomUUID();
 
 const app = express();
 

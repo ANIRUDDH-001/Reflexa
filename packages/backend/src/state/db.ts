@@ -40,9 +40,9 @@ db.exec(`
 
 // 1. Strategies
 export function getLatestStrategy(): { version: string; rules: string[] } | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = db
     .prepare('SELECT version, rules FROM strategies ORDER BY id DESC LIMIT 1')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .get() as any;
   if (!row) return null;
   return {
@@ -96,6 +96,7 @@ export function saveSession(session: BackendSessionState) {
     ON CONFLICT(id) DO UPDATE SET
       status = excluded.status,
       interviewPhase = excluded.interviewPhase,
+      strategyVersion = excluded.strategyVersion,
       endedAt = excluded.endedAt,
       trace = excluded.trace,
       evaluation = excluded.evaluation,
@@ -127,11 +128,11 @@ export function saveSession(session: BackendSessionState) {
 }
 
 export function getHistorySessions(userId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = db
     .prepare(
       'SELECT id, status, startedAt, config, evaluation FROM sessions WHERE userId = ? ORDER BY startedAt DESC',
     )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .all(userId) as any[];
   return rows.map((r) => ({
     id: r.id,

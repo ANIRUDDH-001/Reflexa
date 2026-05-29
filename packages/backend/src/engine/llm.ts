@@ -7,11 +7,11 @@ import 'dotenv/config';
 const tracer = trace.getTracer('reflexa-agent');
 
 const MODELS = [
-  'gemini-2.5-flash',
-  'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-3.1-pro',
-  'gemini-2-flash',
+  'gemini-3.5-flash', // GA May 2026 — primary model
+  'gemini-3.1-pro', // reasoning-first, complex tasks
+  'gemini-3.1-flash-lite', // GA — fast and cost-efficient
+  'gemini-2.5-flash', // stable fallback
+  'gemini-2.5-flash-lite', // cost-efficient last resort
 ];
 
 const responseSchema: Schema = {

@@ -43,9 +43,6 @@
   },
   "prepare": "husky install",
   "pnpm": {
-    "neverBuiltDependencies": [
-      "@google/genai",
-      "protobufjs"
-    ]
+    "onlyBuiltDependencies": []
   }
 }

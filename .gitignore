@@ -5,3 +5,14 @@ packages/*/node_modules
 **/.cache
 .vscode/
 .DS_Store
+
+# Environment files — never commit actual values
+.env.local
+.env.*.local
+packages/**/.env
+packages/**/.env.local
+packages/**/.env.*.local
+
+# SQLite database file (local dev artifact)
+packages/data/*.db
+*.db

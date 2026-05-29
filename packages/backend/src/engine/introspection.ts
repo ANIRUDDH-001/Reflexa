@@ -101,6 +101,7 @@ export async function runIntrospection(
                 );
                 functionResponses.push({
                   functionResponse: {
+                    id: call.id as string, // ← required for Gemini 3.x
                     name: call.name as string,
                     response: { result: resultText },
                   },
@@ -110,6 +111,7 @@ export async function runIntrospection(
                 logger.error({ err }, `Tool ${call.name} failed`);
                 functionResponses.push({
                   functionResponse: {
+                    id: call.id as string, // ← required for Gemini 3.x
                     name: call.name as string,
                     response: { error: errorMessage },
                   },
