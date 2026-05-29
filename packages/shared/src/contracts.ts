@@ -16,7 +16,7 @@ export type SessionConfig = z.infer<typeof SessionConfig>;
 
 export const CreateSessionRequest = z
   .object({
-    userId: z.string().max(100),
+    userId: z.string().max(100).optional(),
     config: SessionConfig.optional(),
   })
   .strict();
@@ -51,6 +51,12 @@ export const EndSessionResponse = z
     traceId: z.string().optional(),
   })
   .strict();
+
+// SSE streaming event types — shared between backend emitter and frontend consumer
+export type TurnStreamEvent =
+  | { type: 'token'; text: string }
+  | { type: 'done'; traceId: string; phase: string; turnCount: number }
+  | { type: 'error'; message: string };
 
 export const APIContracts = {
   HealthResponse,

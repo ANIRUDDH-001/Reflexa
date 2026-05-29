@@ -133,6 +133,76 @@ export async function processTurn(
   );
 }
 
+export type TurnStreamChunk =
+  | { type: 'token'; text: string }
+  | { type: 'done'; fullText: string; traceId: string; phase: string }
+  | { type: 'error'; message: string };
+
+/**
+ * Streaming variant of processTurn.
+ * Yields token chunks as they arrive from Gemini via sendMessageStream.
+ * Falls back through MODELS on quota / rate-limit errors (429).
+ * The caller is responsible for persisting the session after the stream ends.
+ */
+export async function* processTurnStream(
+  state: BackendSessionState,
+  userMessage: string,
+): AsyncGenerator<TurnStreamChunk> {
+  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || '' });
+  const systemInstruction = assemblePrompt(state);
+
+  const history = (state.trace || []).map((event) => ({
+    role: event.type === 'user_message' ? ('user' as const) : ('model' as const),
+    parts: [{ text: event.payload?.text || '' }],
+  }));
+
+  for (const modelId of MODELS) {
+    try {
+      const chat = ai.chats.create({
+        model: modelId,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        },
+        history,
+      });
+
+      // Capture traceId from the active span BEFORE streaming starts
+      const activeSpan = trace.getActiveSpan();
+      const traceId = activeSpan?.spanContext().traceId ?? 'unknown';
+
+      const stream = await chat.sendMessageStream({ message: userMessage });
+
+      let fullText = '';
+      for await (const chunk of stream) {
+        const token = chunk.text ?? '';
+        if (token) {
+          fullText += token;
+          yield { type: 'token', text: token };
+        }
+      }
+
+      yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
+      return; // Success — stop trying fallback models
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Rate-limit / quota — silently try next model
+      if (
+        message.includes('429') ||
+        message.includes('quota') ||
+        message.includes('RESOURCE_EXHAUSTED')
+      ) {
+        continue;
+      }
+      yield { type: 'error', message: `Model ${modelId} failed: ${message}` };
+      return;
+    }
+  }
+
+  yield { type: 'error', message: 'All fallback models exhausted — no response generated.' };
+}
+
 export interface EvaluationResultData {
   score?: number; // legacy
   rubric: {

@@ -10,7 +10,7 @@ import helmet from 'helmet';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { runIntrospection } from './engine/introspection';
-import { processTurn, generateEvaluation } from './engine/llm';
+import { processTurn, generateEvaluation, processTurnStream } from './engine/llm';
 import {
   getLatestStrategy,
   saveStrategy,
@@ -42,7 +42,41 @@ for (const key of REQUIRED_ENV_VARS) {
 
 const generateId = () => randomUUID();
 
+// Extract userId from header, body, or query — header is preferred (set by frontend).
+function extractUserId(req: Request): string | null {
+  return (
+    (req.headers['x-user-id'] as string | undefined) ||
+    (req.body?.userId as string | undefined) ||
+    (req.query.userId as string | undefined) ||
+    null
+  );
+}
+
+// Time-aware phase transitions based on configured session length.
+function updateSessionPhase(session: BackendSessionState): void {
+  const PHASE_TURNS: Record<string, [number, number]> = {
+    '15': [2, 5],
+    '30': [2, 7],
+    '45': [3, 9],
+    '60': [3, 12],
+  };
+  const timeLimit = String(session.config.timeLimit || '30');
+  const [introEnd, deepDiveEnd] = PHASE_TURNS[timeLimit] ?? [2, 7];
+
+  if (session.turnCount <= introEnd) {
+    session.interviewPhase = 'intro';
+  } else if (session.turnCount <= deepDiveEnd) {
+    session.interviewPhase = 'deep_dive';
+  } else {
+    session.interviewPhase = 'closing';
+  }
+}
+
 const app = express();
+
+// Trust Cloud Run's load balancer — required for correct IP detection
+// and for express-rate-limit to work correctly behind Google's proxy.
+app.set('trust proxy', 1);
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const httpLogger = pinoHttp({
@@ -66,7 +100,14 @@ const turnLimiter = rateLimit({
   message: { error: 'Rate limit exceeded for turn submission.' },
 });
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'X-User-Id'],
+    credentials: false,
+  }),
+);
 app.use(express.json());
 
 app.get('/health', (_req: Request, res: Response) => {
@@ -80,6 +121,11 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // Start a new session
 app.post('/session', async (req: Request, res: Response) => {
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(400).json({ error: 'Missing user identity. Send X-User-Id header.' });
+  }
+
   const parsedBody = APIContracts.CreateSessionRequest.safeParse(req.body);
   if (!parsedBody.success) {
     return res.status(400).json({ error: 'invalid request', details: parsedBody.error.format() });
@@ -98,7 +144,7 @@ app.post('/session', async (req: Request, res: Response) => {
 
   const newSession: BackendSessionState = {
     id: sessionId,
-    userId: parsedBody.data.userId,
+    userId,
     startedAt: new Date().toISOString(),
     status: 'in_progress',
     interviewPhase: 'intro',
@@ -180,7 +226,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
 
   try {
     session.turnCount += 1;
-    if (session.turnCount > 2) session.interviewPhase = 'deep_dive';
+    updateSessionPhase(session);
 
     // Call the real Gemini SDK integration
     const llmOutput = await processTurn(session, parsedBody.data.text);
@@ -223,6 +269,78 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
   } catch (error: unknown) {
     const err = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ error: 'Failed to process turn', details: err });
+  }
+});
+
+// POST /session/:id/turn/stream — streaming variant using SSE
+app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Response) => {
+  const sessionId = req.params.id;
+  const parsed = APIContracts.TurnRequest.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+  }
+
+  const session = await getSession(sessionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (session.status !== 'in_progress') {
+    return res.status(400).json({ error: 'Session is not in progress' });
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx/Cloud Run buffering
+  res.flushHeaders();
+
+  // Append user message to trace immediately
+  session.trace = session.trace || [];
+  session.trace.push({
+    id: generateId(),
+    sessionId,
+    timestamp: new Date().toISOString(),
+    type: 'user_message',
+    payload: { text: parsed.data.text },
+  });
+
+  try {
+    for await (const chunk of processTurnStream(session, parsed.data.text)) {
+      if (chunk.type === 'token') {
+        res.write(`data: ${JSON.stringify({ type: 'token', text: chunk.text })}\n\n`);
+      } else if (chunk.type === 'done') {
+        // Append AI message to trace
+        session.trace.push({
+          id: generateId(),
+          sessionId,
+          timestamp: new Date().toISOString(),
+          type: 'ai_message',
+          payload: { text: chunk.fullText },
+          traceId: chunk.traceId,
+        });
+
+        session.turnCount += 1;
+        updateSessionPhase(session);
+        await saveSession(session);
+
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'done',
+            traceId: chunk.traceId,
+            phase: session.interviewPhase,
+            turnCount: session.turnCount,
+          })}\n\n`,
+        );
+      } else if (chunk.type === 'error') {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.message })}\n\n`);
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    logger.error({ err }, '[stream] turn stream error');
+    res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+  } finally {
+    res.write('data: [DONE]\n\n');
+    res.end();
   }
 });
 
@@ -299,7 +417,10 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
 // Fetch all history sessions
 app.get('/sessions', async (req: Request, res: Response) => {
-  const userId = (req.query.userId as string) || 'default_user';
+  const userId = extractUserId(req);
+  if (!userId) {
+    return res.status(400).json({ error: 'Missing user identity. Send X-User-Id header.' });
+  }
   try {
     const history = await getHistorySessions(userId);
     return res.json({ sessions: history });
