@@ -1,4 +1,5 @@
 import { InterviewSession } from '@reflexa/shared';
+import { EvaluationResultData } from '../engine/llm';
 
 export interface BackendSessionState extends InterviewSession {
   interviewPhase: 'intro' | 'exploration' | 'deep_dive' | 'closing';
@@ -13,4 +14,6 @@ export interface BackendSessionState extends InterviewSession {
   };
   turnCount: number;
   activeStrategyRules?: string[];
+  evaluation?: EvaluationResultData;
+  evalTraceId?: string;
 }

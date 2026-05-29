@@ -9,13 +9,15 @@ let mcpClient: Client | null = null;
 let transport: StdioClientTransport | null = null;
 
 export async function initMcpClient(): Promise<Client> {
-  if (mcpClient) return mcpClient;
-
   logger.info('Initializing Phoenix MCP Client...');
   transport = new StdioClientTransport({
     command: 'npx',
-    // In production we should use specific versions or installed binary
     args: ['-y', '@arizeai/phoenix-mcp'],
+    env: {
+      ...process.env,
+      PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',
+      PHOENIX_COLLECTOR_ENDPOINT: process.env.PHOENIX_COLLECTOR_ENDPOINT || '',
+    } as Record<string, string>,
   });
 
   mcpClient = new Client({ name: 'reflexa-agent', version: '1.0.0' }, { capabilities: {} });
@@ -32,75 +34,107 @@ export async function initMcpClient(): Promise<Client> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mcpSchemaToGeminiSchema(jsonSchema: any): Schema {
-  const schema: Schema = {
-    type: Type.OBJECT,
-    properties: {},
-    required: jsonSchema.required || [],
-  };
-
-  if (jsonSchema.properties) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const [key, val] of Object.entries<any>(jsonSchema.properties)) {
-      let t = Type.STRING;
-      switch (val.type) {
-        case 'string':
-          t = Type.STRING;
-          break;
-        case 'integer':
-          t = Type.INTEGER;
-          break;
-        case 'number':
-          t = Type.NUMBER;
-          break;
-        case 'boolean':
-          t = Type.BOOLEAN;
-          break;
-        case 'array':
-          t = Type.ARRAY;
-          break;
-        case 'object':
-          t = Type.OBJECT;
-          break;
+export async function getOrInitMcpClient(): Promise<Client> {
+  if (mcpClient) {
+    try {
+      await mcpClient.listTools(); // health check ping
+      return mcpClient;
+    } catch {
+      // Client is stale — dispose and recreate
+      try {
+        await mcpClient.close();
+      } catch {
+        /* ignore close errors */
       }
-
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      schema.properties![key] = {
-        type: t,
-        description: val.description,
-      };
+      mcpClient = null;
+      transport = null;
     }
   }
 
-  return schema;
+  // Fresh init
+  try {
+    return await initMcpClient();
+  } catch (err) {
+    throw new Error(
+      `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+function mcpSchemaToGeminiSchema(jsonSchema: Record<string, unknown>): Schema {
+  const type = jsonSchema['type'] as string | undefined;
+
+  if (type === 'object') {
+    const properties = jsonSchema['properties'] as Record<string, unknown> | undefined;
+    const required = jsonSchema['required'] as string[] | undefined;
+    const geminiProperties: Record<string, Schema> = {};
+
+    if (properties) {
+      for (const [key, val] of Object.entries(properties)) {
+        geminiProperties[key] = mcpSchemaToGeminiSchema(val as Record<string, unknown>);
+      }
+    }
+
+    return {
+      type: Type.OBJECT,
+      description: jsonSchema['description'] as string | undefined,
+      properties: geminiProperties,
+      required: required ?? [],
+    };
+  }
+
+  if (type === 'array') {
+    const items = jsonSchema['items'] as Record<string, unknown> | undefined;
+    return {
+      type: Type.ARRAY,
+      description: jsonSchema['description'] as string | undefined,
+      items: items ? mcpSchemaToGeminiSchema(items) : { type: Type.STRING },
+    };
+  }
+
+  const primitiveMap: Record<string, Type> = {
+    string: Type.STRING,
+    integer: Type.INTEGER,
+    number: Type.NUMBER,
+    boolean: Type.BOOLEAN,
+  };
+
+  return {
+    type: primitiveMap[type ?? 'string'] ?? Type.STRING,
+    description: jsonSchema['description'] as string | undefined,
+    enum: jsonSchema['enum'] as string[] | undefined,
+  };
 }
 
 export async function getMcpToolsAsGemini(): Promise<FunctionDeclaration[]> {
-  const client = await initMcpClient();
+  const client = await getOrInitMcpClient();
   const toolsRes = await client.listTools();
 
   return toolsRes.tools.map((tool) => ({
     name: tool.name,
     description: tool.description || '',
-    parameters: mcpSchemaToGeminiSchema(tool.inputSchema),
+    parameters: mcpSchemaToGeminiSchema(tool.inputSchema as Record<string, unknown>),
   }));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function callMcpTool(name: string, args: Record<string, any>) {
-  const client = await initMcpClient();
-  const result = await client.callTool({
-    name,
-    arguments: args,
-  });
+export async function callMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const client = await getOrInitMcpClient();
+  const result = await client.callTool({ name: toolName, arguments: args });
 
   if (result.isError) {
-    throw new Error(`Tool ${name} failed: ${JSON.stringify(result.content)}`);
+    throw new Error(`Tool ${toolName} failed: ${JSON.stringify(result.content)}`);
   }
 
   const contentArray = result.content as Array<{ type: string; text?: string }>;
-  // Return a combined string of text content
+  if (!contentArray || contentArray.length === 0) {
+    return '[No data returned from tool]';
+  }
+
   return contentArray
     .filter((c) => c.type === 'text' && c.text)
     .map((c) => c.text)

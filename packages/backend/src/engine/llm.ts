@@ -39,6 +39,7 @@ export interface ProcessTurnResult {
   statusMetadata: string;
   scoreHints: number;
   nextActionIndicator: string;
+  traceId: string;
 }
 
 export async function processTurn(
@@ -103,7 +104,8 @@ export async function processTurn(
                   }
 
                   if (!rawText) throw new Error('Empty response from LLM');
-                  return JSON.parse(rawText);
+                  const capturedTraceId = agentSpan.spanContext().traceId;
+                  return { ...JSON.parse(rawText), traceId: capturedTraceId };
                 } catch (err) {
                   llmSpan.recordException(err as Error);
                   throw err;

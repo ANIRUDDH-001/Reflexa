@@ -94,7 +94,7 @@ app.post('/session', async (req: Request, res: Response) => {
     focusAreas: parsedBody.data.config?.focusAreas ?? [],
   };
 
-  const latestStrategy = getLatestStrategy();
+  const latestStrategy = await getLatestStrategy();
 
   const newSession: BackendSessionState = {
     id: sessionId,
@@ -122,7 +122,7 @@ app.post('/session', async (req: Request, res: Response) => {
     ],
   };
 
-  saveSession(newSession);
+  await saveSession(newSession);
 
   const responsePayload = { session: newSession };
   const parsedRes = APIContracts.CreateSessionResponse.safeParse(responsePayload);
@@ -134,9 +134,9 @@ app.post('/session', async (req: Request, res: Response) => {
 });
 
 // Fetch current session state
-app.get('/session/:id', (req: Request, res: Response) => {
+app.get('/session/:id', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = getSession(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -154,7 +154,7 @@ app.get('/session/:id', (req: Request, res: Response) => {
 // Submit an answer (user turn)
 app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = getSession(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -189,7 +189,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
     session.lastAgentAction =
       llmOutput.nextActionIndicator as BackendSessionState['lastAgentAction'];
 
-    const traceId = trace.getActiveSpan()?.spanContext().traceId;
+    const traceId = llmOutput.traceId;
 
     session.trace.push({
       id: generateId(),
@@ -206,7 +206,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
       },
     });
 
-    saveSession(session);
+    await saveSession(session);
 
     const responsePayload = {
       text: llmOutput.agentMessage,
@@ -229,7 +229,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
 // Close a session
 app.post('/session/:id/end', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = getSession(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
@@ -253,12 +253,12 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
     // Save new strategy version
     const newVersionId = `v${Date.now()}`;
-    saveStrategy(newVersionId, introspection.newRules);
+    await saveStrategy(newVersionId, introspection.newRules);
 
     evaluation.strategyOverrides = introspection.newRules;
 
-    // Save the evaluation in the session state so GET /session/:id returns it
-    (session as unknown as { evaluation: unknown }).evaluation = evaluation;
+    // Save the evaluation and strategy update into session state
+    session.evaluation = evaluation;
     session.strategyUpdate = {
       id: newVersionId,
       sessionId: session.id,
@@ -274,7 +274,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
     const traceId = trace.getActiveSpan()?.spanContext().traceId;
     session.evalTraceId = traceId;
 
-    saveSession(session);
+    await saveSession(session);
 
     const responsePayload = {
       status: 'completed' as const,
@@ -298,10 +298,10 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 });
 
 // Fetch all history sessions
-app.get('/sessions', (req: Request, res: Response) => {
+app.get('/sessions', async (req: Request, res: Response) => {
   const userId = (req.query.userId as string) || 'default_user';
   try {
-    const history = getHistorySessions(userId);
+    const history = await getHistorySessions(userId);
     return res.json({ sessions: history });
   } catch (error: unknown) {
     const err = error instanceof Error ? error.message : 'Unknown error';
@@ -310,12 +310,12 @@ app.get('/sessions', (req: Request, res: Response) => {
 });
 
 // Compare session to previous
-app.get('/session/:id/compare', (req: Request, res: Response) => {
+app.get('/session/:id/compare', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = getSession(sessionId);
+  const session = await getSession(sessionId);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const history = getHistorySessions(session.userId);
+  const history = await getHistorySessions(session.userId);
   const currentIndex = history.findIndex((h) => h.id === sessionId);
 
   if (currentIndex === -1 || currentIndex === history.length - 1) {
@@ -324,10 +324,9 @@ app.get('/session/:id/compare', (req: Request, res: Response) => {
 
   const previousSession = history[currentIndex + 1];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentRubric = (session as any).evaluation?.rubric;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const previousRubric = (previousSession as any).evaluation?.rubric;
+  const currentRubric = session.evaluation?.rubric;
+  const previousRubric = (previousSession as { evaluation?: { rubric?: Record<string, number> } })
+    .evaluation?.rubric;
 
   if (!currentRubric || !previousRubric) {
     return res.json({ comparison: null });
@@ -335,9 +334,8 @@ app.get('/session/:id/compare', (req: Request, res: Response) => {
 
   const delta: Record<string, number> = {};
   for (const key of Object.keys(currentRubric)) {
-    const k = key as keyof typeof currentRubric;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delta[k as string] = ((currentRubric as any)[k] || 0) - ((previousRubric as any)[k] || 0);
+    delta[key] =
+      (currentRubric[key as keyof typeof currentRubric] || 0) - (previousRubric[key] || 0);
   }
 
   const comparison = {

@@ -35,7 +35,7 @@ function makeSession(overrides: Partial<BackendSessionState> = {}): BackendSessi
 // Session CRUD
 // ---------------------------------------------------------------------------
 describe('db – sessions', () => {
-  it('saveSession then getSession round-trips all fields', () => {
+  it('saveSession then getSession round-trips all fields', async () => {
     const session = makeSession({
       interviewPhase: 'exploration',
       lastAgentAction: 'asked_question',
@@ -43,8 +43,8 @@ describe('db – sessions', () => {
       activeStrategyRules: ['rule-a', 'rule-b'],
     });
 
-    saveSession(session);
-    const loaded = getSession(session.id);
+    await saveSession(session);
+    const loaded = await getSession(session.id);
 
     expect(loaded).not.toBeNull();
     expect(loaded!.id).toBe(session.id);
@@ -61,23 +61,23 @@ describe('db – sessions', () => {
     expect(loaded!.lastAgentAction).toBeNull();
   });
 
-  it('getSession returns null for a non-existent id', () => {
-    const result = getSession(`nonexistent-${crypto.randomUUID()}`);
+  it('getSession returns null for a non-existent id', async () => {
+    const result = await getSession(`nonexistent-${crypto.randomUUID()}`);
     expect(result).toBeNull();
   });
 
-  it('saveSession upserts – updating status is persisted', () => {
+  it('saveSession upserts – updating status is persisted', async () => {
     const session = makeSession({ status: 'in_progress' });
-    saveSession(session);
+    await saveSession(session);
 
     // Mutate and save again
     session.status = 'completed';
     session.endedAt = new Date().toISOString();
     session.interviewPhase = 'closing';
     session.turnCount = 10;
-    saveSession(session);
+    await saveSession(session);
 
-    const loaded = getSession(session.id);
+    const loaded = await getSession(session.id);
     expect(loaded).not.toBeNull();
     expect(loaded!.status).toBe('completed');
     expect(loaded!.endedAt).toBe(session.endedAt);
@@ -85,7 +85,7 @@ describe('db – sessions', () => {
     expect(loaded!.turnCount).toBe(10);
   });
 
-  it('session with evaluation data round-trips correctly', () => {
+  it('session with evaluation data round-trips correctly', async () => {
     const evaluation = {
       id: crypto.randomUUID(),
       sessionId: 'will-be-set',
@@ -98,9 +98,9 @@ describe('db – sessions', () => {
     evaluation.sessionId = session.id;
     session.evaluation = evaluation;
 
-    saveSession(session);
+    await saveSession(session);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const loaded = getSession(session.id) as any;
+    const loaded = (await getSession(session.id)) as any;
 
     expect(loaded).not.toBeNull();
     expect(loaded.evaluation).toBeDefined();
@@ -115,18 +115,18 @@ describe('db – sessions', () => {
 // History
 // ---------------------------------------------------------------------------
 describe('db – getHistorySessions', () => {
-  it('returns sessions in descending chronological order', () => {
+  it('returns sessions in descending chronological order', async () => {
     const userId = `user-${crypto.randomUUID()}`;
 
     const s1 = makeSession({ userId, startedAt: '2025-01-01T00:00:00Z' });
     const s2 = makeSession({ userId, startedAt: '2025-06-01T00:00:00Z' });
     const s3 = makeSession({ userId, startedAt: '2025-03-01T00:00:00Z' });
 
-    saveSession(s1);
-    saveSession(s2);
-    saveSession(s3);
+    await saveSession(s1);
+    await saveSession(s2);
+    await saveSession(s3);
 
-    const history = getHistorySessions(userId);
+    const history = await getHistorySessions(userId);
     expect(history).toHaveLength(3);
     // Most recent first
     expect(history[0].id).toBe(s2.id);
@@ -134,8 +134,8 @@ describe('db – getHistorySessions', () => {
     expect(history[2].id).toBe(s1.id);
   });
 
-  it('returns an empty array for an unknown userId', () => {
-    const history = getHistorySessions(`unknown-${crypto.randomUUID()}`);
+  it('returns an empty array for an unknown userId', async () => {
+    const history = await getHistorySessions(`unknown-${crypto.randomUUID()}`);
     expect(history).toEqual([]);
   });
 });
@@ -144,12 +144,12 @@ describe('db – getHistorySessions', () => {
 // Strategies
 // ---------------------------------------------------------------------------
 describe('db – strategies', () => {
-  it('saveStrategy then getLatestStrategy round-trips version and rules', () => {
+  it('saveStrategy then getLatestStrategy round-trips version and rules', async () => {
     const version = `v-test-${crypto.randomUUID()}`;
     const rules = ['ask follow-up after vague answer', 'limit hints to 2 per session'];
 
-    saveStrategy(version, rules);
-    const latest = getLatestStrategy();
+    await saveStrategy(version, rules);
+    const latest = await getLatestStrategy();
 
     expect(latest).not.toBeNull();
     // The latest may or may not be ours if other tests saved strategies, so
@@ -160,14 +160,14 @@ describe('db – strategies', () => {
     expect(latest!.rules).toEqual(rules);
   });
 
-  it('getLatestStrategy returns the most recently inserted strategy', () => {
+  it('getLatestStrategy returns the most recently inserted strategy', async () => {
     const v1 = `v-old-${crypto.randomUUID()}`;
     const v2 = `v-new-${crypto.randomUUID()}`;
 
-    saveStrategy(v1, ['rule-old']);
-    saveStrategy(v2, ['rule-new-1', 'rule-new-2']);
+    await saveStrategy(v1, ['rule-old']);
+    await saveStrategy(v2, ['rule-new-1', 'rule-new-2']);
 
-    const latest = getLatestStrategy();
+    const latest = await getLatestStrategy();
     expect(latest).not.toBeNull();
     expect(latest!.version).toBe(v2);
     expect(latest!.rules).toEqual(['rule-new-1', 'rule-new-2']);
