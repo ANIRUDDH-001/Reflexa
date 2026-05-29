@@ -14,6 +14,15 @@ const MODELS = [
   'gemini-2.5-flash-lite', // cost-efficient last resort
 ];
 
+export function getGoogleApiKey(): string {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error('GOOGLE_API_KEY is required to run Gemini-backed interview features');
+  }
+
+  return apiKey;
+}
+
 const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -56,9 +65,7 @@ export async function processTurn(
     },
     async (agentSpan) => {
       try {
-        const ai = new GoogleGenAI({
-          apiKey: process.env.GOOGLE_API_KEY || '',
-        });
+        const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
 
         const systemInstruction = assemblePrompt(state);
 
@@ -148,7 +155,7 @@ export async function* processTurnStream(
   state: BackendSessionState,
   userMessage: string,
 ): AsyncGenerator<TurnStreamChunk> {
-  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
   const systemInstruction = assemblePrompt(state);
 
   const history = (state.trace || []).map((event) => ({

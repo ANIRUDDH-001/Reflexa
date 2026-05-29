@@ -5,6 +5,14 @@ import { runIntrospection } from './introspection';
 
 // Mock the Gemini AI client
 vi.mock('@google/genai', () => ({
+  Type: {
+    OBJECT: 'OBJECT',
+    STRING: 'STRING',
+    INTEGER: 'INTEGER',
+    NUMBER: 'NUMBER',
+    BOOLEAN: 'BOOLEAN',
+    ARRAY: 'ARRAY',
+  },
   GoogleGenAI: vi.fn().mockImplementation(() => ({
     chats: {
       create: vi.fn().mockReturnValue({

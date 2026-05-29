@@ -21,9 +21,10 @@ import {
 import { BackendSessionState } from './state/types';
 
 // ── Startup env validation ─────────────────────────────────────
-// Fail fast if required environment variables are missing.
-// This prevents silent failures buried in LLM call stack traces.
-const REQUIRED_ENV_VARS = [
+// Railway should keep the container healthy even if feature flags or
+// external integrations are not configured yet. We warn at boot and let
+// the specific route fail with a clearer error when a missing variable is used.
+const STARTUP_ENV_VARS = [
   'GOOGLE_API_KEY',
   'PHOENIX_API_KEY',
   'PHOENIX_COLLECTOR_ENDPOINT',
@@ -31,11 +32,10 @@ const REQUIRED_ENV_VARS = [
   'SUPABASE_SERVICE_ROLE_KEY',
 ];
 
-for (const key of REQUIRED_ENV_VARS) {
+for (const key of STARTUP_ENV_VARS) {
   if (!process.env[key]) {
     // eslint-disable-next-line no-console
-    console.error(`[Reflexa] Missing required environment variable: ${key}`);
-    process.exit(1);
+    console.warn(`[Reflexa] Missing environment variable at startup: ${key}`);
   }
 }
 // ── End env validation ─────────────────────────────────────────

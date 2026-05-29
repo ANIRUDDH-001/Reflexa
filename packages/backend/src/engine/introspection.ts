@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import pino from 'pino';
+import { getGoogleApiKey } from './llm';
 import { getMcpToolsAsGemini, callMcpTool } from './mcp';
 
 const logger = pino();
@@ -25,7 +26,7 @@ export async function runIntrospection(
     { attributes: { 'openinference.span.kind': 'AGENT', 'session.id': sessionId } },
     async (span) => {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || '' });
+        const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
 
         let tools;
         try {
