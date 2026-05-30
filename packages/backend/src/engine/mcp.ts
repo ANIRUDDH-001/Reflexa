@@ -9,6 +9,9 @@ let mcpClient: Client | null = null;
 let transport: StdioClientTransport | null = null;
 
 export async function initMcpClient(): Promise<Client> {
+  if (process.env.PHOENIX_MCP_ENABLED === 'false') {
+    throw new Error('[mcp] Phoenix MCP is disabled via PHOENIX_MCP_ENABLED=false');
+  }
   logger.info('Initializing Phoenix MCP Client...');
   transport = new StdioClientTransport({
     command: 'npx',

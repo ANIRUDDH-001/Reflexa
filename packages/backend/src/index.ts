@@ -20,23 +20,29 @@ import {
 } from './state/db';
 import { BackendSessionState } from './state/types';
 
-// ── Startup env validation ─────────────────────────────────────
-// Railway should keep the container healthy even if feature flags or
-// external integrations are not configured yet. We warn at boot and let
-// the specific route fail with a clearer error when a missing variable is used.
-const STARTUP_ENV_VARS = [
-  'GOOGLE_API_KEY',
-  'PHOENIX_API_KEY',
-  'PHOENIX_COLLECTOR_ENDPOINT',
-  'SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY',
-];
-
-for (const key of STARTUP_ENV_VARS) {
-  if (!process.env[key]) {
-    // eslint-disable-next-line no-console
-    console.warn(`[Reflexa] Missing environment variable at startup: ${key}`);
+// ── Startup environment validation ────────────────────────────
+// CRITICAL variables: server will not start without these.
+// Use SKIP_ENV_VALIDATION=true in CI where stub values are injected.
+if (process.env.SKIP_ENV_VALIDATION !== 'true') {
+  const REQUIRED: string[] = [
+    'GOOGLE_API_KEY',
+    'PHOENIX_API_KEY',
+    'PHOENIX_COLLECTOR_ENDPOINT',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+  ];
+  const missing = REQUIRED.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.error(`[Reflexa] Missing required environment variables: ${missing.join(', ')}`);
+    console.error('[Reflexa] Server will not start. Set these variables and restart.');
+    process.exit(1);
   }
+}
+
+// RECOMMENDED variables: server starts but features degrade without these.
+if (!process.env.FRONTEND_ORIGIN) {
+  // eslint-disable-next-line no-console
+  console.warn('[Reflexa] FRONTEND_ORIGIN not set — CORS will use default http://localhost:5173');
 }
 // ── End env validation ─────────────────────────────────────────
 
