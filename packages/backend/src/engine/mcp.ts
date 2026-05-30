@@ -52,7 +52,7 @@ export async function shutdownMcpClient(): Promise<void> {
     try {
       await mcpClient.close();
     } catch (err) {
-      logger.warn('[mcp] Error closing MCP client during shutdown:', err);
+      logger.error({ err }, '[mcp] Error closing MCP client during shutdown:');
     }
     mcpClient = null;
   }
@@ -60,7 +60,7 @@ export async function shutdownMcpClient(): Promise<void> {
     try {
       await transport.close();
     } catch (err) {
-      logger.warn('[mcp] Error closing MCP transport during shutdown:', err);
+      logger.error({ err }, '[mcp] Error closing MCP transport during shutdown:');
     }
     transport = null;
   }

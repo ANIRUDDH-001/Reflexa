@@ -42,7 +42,7 @@ function rowToSession(row: any): BackendSessionState {
     strategyUpdate: row.strategy_update ?? undefined,
     turnCount: row.turn_count,
     activeStrategyRules: row.active_strategy_rules ?? [],
-    lastAgentAction: (row.last_agent_action as string | null) ?? null,
+    lastAgentAction: row.last_agent_action ?? null,
   } as BackendSessionState;
 }
 
@@ -98,6 +98,13 @@ export async function saveStrategy(version: string, rules: string[]): Promise<vo
 
   if (error) {
     throw new Error(`[db] saveStrategy failed: ${error.message}`);
+  }
+}
+
+export async function deleteStrategy(version: string): Promise<void> {
+  const { error } = await db().from('strategies').delete().eq('version', version);
+  if (error) {
+    throw new Error(`[db] deleteStrategy failed: ${error.message}`);
   }
 }
 

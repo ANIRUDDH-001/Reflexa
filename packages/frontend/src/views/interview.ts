@@ -33,6 +33,8 @@ export async function renderInterview(
   isThinking = true; // start thinking while loading
   isPaused = false;
   currentSessionId = params?.id || null;
+  currentTurn = 0;
+  currentPhase = 'intro';
 
   // Safe: explicitly cleared
   container.innerHTML = '';

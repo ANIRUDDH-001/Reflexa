@@ -5,6 +5,7 @@ import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
 
@@ -24,6 +25,7 @@ const sdk = new NodeSDK({
     [SemanticResourceAttributes.SERVICE_VERSION]: '0.1.0',
   }),
   traceExporter,
+  spanProcessor: new SimpleSpanProcessor(traceExporter),
   instrumentations: [new HttpInstrumentation(), new ExpressInstrumentation()],
 });
 

@@ -1,3 +1,4 @@
+import { SemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import { GoogleGenAI } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import pino from 'pino';
@@ -23,7 +24,12 @@ export async function runIntrospection(
 ): Promise<StrategyUpdateResult> {
   return tracer.startActiveSpan(
     'runIntrospection',
-    { attributes: { 'openinference.span.kind': 'AGENT', 'session.id': sessionId } },
+    {
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'AGENT',
+        'session.id': sessionId,
+      },
+    },
     async (span) => {
       try {
         const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });

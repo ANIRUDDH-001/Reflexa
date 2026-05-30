@@ -57,8 +57,8 @@ describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')('db – s
     expect(loaded!.config).toEqual(session.config);
     expect(loaded!.trace).toEqual(session.trace);
     expect(loaded!.activeStrategyRules).toEqual(session.activeStrategyRules);
-    // lastAgentAction is always null on read (hard-coded in getSession)
-    expect(loaded!.lastAgentAction).toBeNull();
+    // lastAgentAction correctly round-trips via last_agent_action column mapping
+    expect(loaded!.lastAgentAction).toBe(session.lastAgentAction);
   });
 
   it('getSession returns null for a non-existent id', async () => {

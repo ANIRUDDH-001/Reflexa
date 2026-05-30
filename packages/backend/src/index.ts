@@ -13,6 +13,7 @@ import { processTurn, generateEvaluation, processTurnStream } from './engine/llm
 import {
   getLatestStrategy,
   saveStrategy,
+  deleteStrategy,
   getSession,
   saveSession,
   getHistorySessions,
@@ -47,14 +48,9 @@ if (!process.env.FRONTEND_ORIGIN) {
 
 const generateId = () => randomUUID();
 
-// Extract userId from header, body, or query — header is preferred (set by frontend).
+// Extract userId from header — header is preferred and mandatory (set by frontend).
 function extractUserId(req: Request): string | null {
-  return (
-    (req.headers['x-user-id'] as string | undefined) ||
-    (req.body?.userId as string | undefined) ||
-    (req.query.userId as string | undefined) ||
-    null
-  );
+  return (req.headers['x-user-id'] as string | undefined) || null;
 }
 
 /**
@@ -502,8 +498,18 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
           newVersionId,
           err: sessionErr,
         },
-        '[end] saveSession failed after saveStrategy succeeded — strategy version orphaned. Needs manual cleanup.',
+        '[end] saveSession failed after saveStrategy succeeded. Rolling back strategy version.',
       );
+      // Compensating logic: rollback the strategy if session save fails
+      try {
+        await deleteStrategy(newVersionId);
+      } catch (rollbackErr) {
+        logger.error(
+          { err: rollbackErr, newVersionId },
+          '[end] Failed to rollback orphaned strategy. Needs manual cleanup.',
+        );
+      }
+
       // Re-throw so the client gets a 500 and can retry
       throw sessionErr;
     }
