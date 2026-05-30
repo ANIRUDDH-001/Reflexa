@@ -302,26 +302,15 @@ export async function renderAnalysis(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   evaluation.weakTurns.forEach((wt: any) => {
-    // Cross-reference turn numbers with actual session trace payloads
-    const turnTextData = wt.turns
-      .map((tn: number) => {
-        const traceMsg = session.trace[tn - 1];
-        if (!traceMsg || !traceMsg.payload) return `Turn ${tn}: [Data missing]`;
-        return `Turn ${tn} (${traceMsg.type === 'ai_message' ? 'AI' : 'User'}):\n${escapeHtml(
-          traceMsg.payload.text || '',
-        )}`;
-      })
-      .join('\n\n');
-
     const accordion = createAccordion(
       { label: 'Improvement Area', variant: 'warning' },
-      `Turns ${wt.turns.join(' & ')}`,
+      wt.turnLabel,
       wt.summary,
       wt.explanation,
       '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2 whitespace-pre-wrap">' +
-        turnTextData +
+        (wt.traceData || 'No trace data provided') +
         '</div>',
-      toTitleCase(wt.failureType || wt.type),
+      toTitleCase(wt.failurePatternLabel),
     );
     weakTurnsCardContent.appendChild(accordion);
   });
