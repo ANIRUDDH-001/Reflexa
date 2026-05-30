@@ -307,8 +307,10 @@ export async function renderInterview(
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } else if (event.type === 'error') {
           typingEl.remove();
-          aiBubble?.remove();
-          showToast({ title: 'AI Error', message: event.message, type: 'error' });
+          if (aiBubble) aiBubble.remove();
+          showToast({ title: 'Interview error', message: event.message, type: 'error' });
+          setComposerDisabled(false);
+          isThinking = false;
         }
       }
     } catch (err) {

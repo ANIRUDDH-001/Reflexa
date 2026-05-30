@@ -120,7 +120,7 @@ const app: express.Application = express();
 // and for express-rate-limit to work correctly behind Google's proxy.
 app.set('trust proxy', 1);
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+export const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const httpLogger = pinoHttp({
   logger,
   redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.text', 'req.body.config'],
@@ -341,18 +341,56 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
     payload: { text: parsed.data.text },
   });
 
+  // Detect client disconnection and abort the stream
+  const clientController = new AbortController();
+  req.on('close', () => {
+    clientController.abort();
+  });
+
+  // Heartbeat: prevents Cloud Run / Nginx from closing the connection
+  // during long LLM response times (Gemini can take 3–8 seconds for first token)
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(': heartbeat\n\n');
+    }
+  }, 5000);
+
   try {
-    for await (const chunk of processTurnStream(session, parsed.data.text)) {
+    for await (const chunk of processTurnStream(
+      session,
+      parsed.data.text,
+      clientController.signal,
+    )) {
       if (chunk.type === 'token') {
         res.write(`data: ${JSON.stringify({ type: 'token', text: chunk.text })}\n\n`);
       } else if (chunk.type === 'done') {
+        let extractedMessage = chunk.fullText;
+        let extractedStatus: string | undefined = undefined;
+        let extractedScore: number | undefined = undefined;
+
+        try {
+          const parsedText = JSON.parse(chunk.fullText);
+          if (parsedText.agentMessage) extractedMessage = parsedText.agentMessage;
+          extractedStatus = parsedText.statusMetadata;
+          extractedScore = parsedText.scoreHints;
+        } catch {
+          const match = chunk.fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          if (match) extractedMessage = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
+
         // Append AI message to trace
         session.trace.push({
           id: generateId(),
           sessionId,
           timestamp: new Date().toISOString(),
           type: 'ai_message',
-          payload: { text: chunk.fullText },
+          payload: {
+            text: extractedMessage,
+            metadata: {
+              status: extractedStatus,
+              scoreHint: extractedScore,
+            },
+          },
           traceId: chunk.traceId,
         });
 
@@ -372,13 +410,18 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
         res.write(`data: ${JSON.stringify({ type: 'error', message: chunk.message })}\n\n`);
       }
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    logger.error({ err }, '[stream] turn stream error');
-    res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ sessionId, error: err }, 'Stream failed');
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Stream failed' })}\n\n`);
+    }
   } finally {
-    res.write('data: [DONE]\n\n');
-    res.end();
+    clearInterval(heartbeat);
+    if (!res.writableEnded) {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
   }
 });
 

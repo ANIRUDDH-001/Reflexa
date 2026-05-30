@@ -1,6 +1,7 @@
 import { SemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { trace } from '@opentelemetry/api';
+import { logger } from '../index';
 import { BackendSessionState } from '../state/types';
 import { assemblePrompt } from './promptBuilder';
 import 'dotenv/config';
@@ -170,6 +171,7 @@ export type TurnStreamChunk =
 export async function* processTurnStream(
   state: BackendSessionState,
   userMessage: string,
+  clientSignal?: AbortSignal,
 ): AsyncGenerator<TurnStreamChunk> {
   const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
   const systemInstruction = assemblePrompt(state);
@@ -207,6 +209,13 @@ export async function* processTurnStream(
         let streamedMessageLength = 0;
 
         for await (const chunk of stream) {
+          if (clientSignal?.aborted) {
+            logger.info(
+              { sessionId: state.id },
+              '[stream] Client disconnected, aborting generation loop',
+            );
+            throw new Error('Client disconnected');
+          }
           if (controller.signal.aborted) throw new Error('Model timeout after 15s');
           const token = chunk.text ?? '';
           if (token) {
@@ -228,16 +237,31 @@ export async function* processTurnStream(
           }
         }
 
-        // Extract clean agentMessage for trace storage
-        let cleanText = fullText;
+        // Extract clean agentMessage to verify it exists
+        let extractedMessage = '';
         try {
           const parsed = JSON.parse(fullText);
-          if (parsed.agentMessage) cleanText = parsed.agentMessage;
+          extractedMessage = parsed.agentMessage ?? '';
         } catch {
-          // If JSON parsing fails, use raw text
+          // JSON.parse failed — try regex as last resort
+          const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
+          logger.warn(
+            { sessionId: state.id },
+            '[stream] Could not parse structured response — using regex fallback',
+          );
         }
 
-        yield { type: 'done', fullText: cleanText, traceId, phase: state.interviewPhase };
+        if (!extractedMessage) {
+          logger.error(
+            { sessionId: state.id, fullText: fullText.slice(0, 200) },
+            '[stream] Empty agentMessage after extraction',
+          );
+          yield { type: 'error', message: 'AI returned an empty response. Please try again.' };
+          return;
+        }
+
+        yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
         return; // Success — stop trying fallback models
       } finally {
         clearTimeout(timeout);
