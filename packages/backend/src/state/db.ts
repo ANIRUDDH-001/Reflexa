@@ -42,7 +42,7 @@ function rowToSession(row: any): BackendSessionState {
     strategyUpdate: row.strategy_update ?? undefined,
     turnCount: row.turn_count,
     activeStrategyRules: row.active_strategy_rules ?? [],
-    lastAgentAction: null,
+    lastAgentAction: (row.last_agent_action as string | null) ?? null,
   } as BackendSessionState;
 }
 
@@ -65,6 +65,7 @@ function sessionToRow(session: BackendSessionState): Record<string, any> {
     strategy_update: session.strategyUpdate ?? null,
     turn_count: session.turnCount,
     active_strategy_rules: session.activeStrategyRules ?? [],
+    last_agent_action: session.lastAgentAction ?? null,
   };
 }
 

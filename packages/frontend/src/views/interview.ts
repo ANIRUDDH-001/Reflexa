@@ -22,7 +22,8 @@ let messages: Message[] = [];
 let isThinking = false;
 let isPaused = false;
 let currentSessionId: string | null = null;
-let currentScore = 0;
+let currentTurn = 0;
+let currentPhase = 'intro';
 
 export async function renderInterview(
   container: HTMLElement,
@@ -294,12 +295,13 @@ export async function renderInterview(
           if (progressEl) {
             // Safe: clearing contents
             progressEl.innerHTML = '';
-            currentScore = Math.min(currentScore + 5, 100); // incremental hint
+            currentTurn = event.turnCount;
+            currentPhase = event.phase;
             progressEl.appendChild(
               createProgress({
-                value: event.turnCount,
+                value: currentTurn,
                 max: 20,
-                label: `Turn ${event.turnCount} • Phase: ${event.phase}`,
+                label: `Turn ${currentTurn} • Phase: ${currentPhase.replace('_', ' ')}`,
               }),
             );
           }
@@ -376,9 +378,9 @@ export async function renderInterview(
       progressEl.innerHTML = '';
       progressEl.appendChild(
         createProgress({
-          value: currentScore,
-          max: 100,
-          label: 'Session Score (' + currentScore + '%)',
+          value: currentTurn,
+          max: 20,
+          label: `Turn ${currentTurn} • Phase: ${currentPhase.replace('_', ' ')}`,
         }),
       );
     }
@@ -400,35 +402,41 @@ export async function renderInterview(
         variant: 'neutral',
       }).outerHTML;
 
-      const aiMsgs = session.trace.filter((t: Record<string, unknown>) => t.type === 'ai_message');
-      const lastAiMsg = aiMsgs[aiMsgs.length - 1];
+      currentTurn = session.turnCount || 0;
+      currentPhase = session.interviewPhase || 'intro';
 
-      if (lastAiMsg) {
-        messages = [
-          {
-            id: lastAiMsg.id,
-            role: 'ai',
-            text: lastAiMsg.payload.text,
-            traceId: lastAiMsg.traceId,
-          },
-        ];
-        if (lastAiMsg.payload.metadata?.scoreHint)
-          currentScore = lastAiMsg.payload.metadata.scoreHint;
+      if (session.trace && session.trace.length > 0) {
+        messages = session.trace
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((t: any) => t.type === 'user_message' || t.type === 'ai_message')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((t: any) => ({
+            id: t.id || Math.random().toString(),
+            role: t.type === 'user_message' ? 'user' : 'ai',
+            text: t.payload?.text || '',
+            traceId: t.traceId,
+          }));
 
-        // Safe: escaped dynamic values
-        document.getElementById('rubric-content')!.innerHTML = `
-          <div class="text-sm font-medium mb-1">Last Action</div>
-          <div class="text-sm text-gray-600 mb-3">${escapeHtml(
-            session.lastAgentAction || 'Started session',
-          )}</div>
-          ${
-            lastAiMsg.payload.metadata?.status
-              ? '<div class="text-sm text-accent">' +
-                escapeHtml(lastAiMsg.payload.metadata.status) +
-                '</div>'
-              : ''
-          }
-        `;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const aiMsgs = session.trace.filter((t: any) => t.type === 'ai_message');
+        const lastAiMsg = aiMsgs[aiMsgs.length - 1];
+
+        if (lastAiMsg) {
+          // Safe: escaped dynamic values
+          document.getElementById('rubric-content')!.innerHTML = `
+            <div class="text-sm font-medium mb-1">Last Action</div>
+            <div class="text-sm text-gray-600 mb-3">${escapeHtml(
+              session.lastAgentAction || 'Started session',
+            )}</div>
+            ${
+              lastAiMsg.payload?.metadata?.status
+                ? '<div class="text-sm text-accent">' +
+                  escapeHtml(lastAiMsg.payload.metadata.status) +
+                  '</div>'
+                : ''
+            }
+          `;
+        }
       }
     } catch (e) {
       showToast({ title: 'Error', message: 'Failed to load session', type: 'error' });
