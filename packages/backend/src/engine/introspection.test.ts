@@ -94,9 +94,9 @@ describe('runIntrospection', () => {
     const { callMcpTool } = await import('./mcp');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (callMcpTool as any).mockResolvedValue({
-      content: [{ type: 'text', text: 'Found 3 weak spans in session test-session-3' }],
-    });
+    (callMcpTool as any).mockResolvedValue(
+      'Found 3 weak spans in session test-session-3. Weak turns at positions 2, 4, and 6.',
+    );
 
     let callCount = 0;
     const mockSendMessage = vi.fn().mockImplementation(() => {
