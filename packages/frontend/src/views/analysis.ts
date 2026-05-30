@@ -3,6 +3,7 @@ import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { refreshIcons } from '../lucide';
+import { escapeHtml, sanitiseHtml } from '../utils/dom';
 
 const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
 
@@ -14,10 +15,12 @@ export async function renderAnalysis(
   params?: Record<string, string>,
 ): Promise<void> {
   currentSessionId = params?.id || null;
+  // Safe: static text
   container.innerHTML =
     '<div class="p-8 text-center text-gray-500">Loading analysis telemetry...</div>';
 
   if (!currentSessionId) {
+    // Safe: static text
     container.innerHTML = '<div class="p-8 text-center text-error">No session ID provided</div>';
     return;
   }
@@ -34,6 +37,7 @@ export async function renderAnalysis(
     session = sessionRes.session;
     comparison = compRes.comparison;
   } catch (e) {
+    // Safe: static text
     container.innerHTML =
       '<div class="p-8 text-center text-error">Failed to load session data</div>';
     return;
@@ -41,11 +45,13 @@ export async function renderAnalysis(
 
   const evaluation = session.evaluation;
   if (!evaluation) {
+    // Safe: static text
     container.innerHTML =
       '<div class="p-8 text-center text-warning">Session is not yet evaluated or evaluation failed.</div>';
     return;
   }
 
+  // Safe: clear
   container.innerHTML = '';
 
   const header = document.createElement('div');
@@ -58,14 +64,17 @@ export async function renderAnalysis(
     : new Date(session.startedAt).toLocaleString();
 
   const renderHeader = () => {
+    // Safe: dynamic fields escaped
     header.innerHTML = `
       <div>
         <h2 class="view-header__title">Telemetry Analysis</h2>
-        <p class="view-header__subtitle">${roleName} • ${styleName} • Completed ${timeElapsed}</p>
+        <p class="view-header__subtitle">${escapeHtml(roleName)} • ${escapeHtml(
+      styleName,
+    )} • ${escapeHtml(timeElapsed)}</p>
       </div>
       <div class="flex gap-2">
         ${
-          session.evalTraceId
+          session.evalTraceId && /^[0-9a-f]{32}$/.test(session.evalTraceId)
             ? `<a href="${PHOENIX_TRACE_BASE}/${session.evalTraceId}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
                 <i data-lucide="external-link"></i>
                 <span>View Full Trace</span>
@@ -105,6 +114,7 @@ export async function renderAnalysis(
   container.appendChild(scoreGridContainer);
 
   const renderScores = () => {
+    // Safe: clear
     scoreGridContainer.innerHTML = '';
     const scoreGrid = document.createElement('div');
     scoreGrid.className = 'grid gap-6 mb-6';
@@ -153,6 +163,7 @@ export async function renderAnalysis(
 
       const cardContent = document.createElement('div');
       cardContent.className = 'score-card p-4 rounded-lg border bg-white';
+      // Safe: internal score values
       cardContent.innerHTML = `
         <div class="text-sm text-gray-500 mb-1">${s.label}</div>
         <div class="flex items-end gap-3">
@@ -208,27 +219,31 @@ export async function renderAnalysis(
 
     const header = document.createElement('div');
     header.className = 'accordion__header flex justify-between w-full';
+    // Safe: dynamic fields escaped
     header.innerHTML = `
       <div class="flex items-center gap-3">
         ${createBadge(opts).outerHTML}
-        <span class="text-sm font-medium text-gray-800">${summary}</span>
+        <span class="text-sm font-medium text-gray-800">${escapeHtml(summary)}</span>
       </div>
       <div class="flex items-center gap-3">
         ${
           failureLabel
-            ? `<span class="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">${failureLabel}</span>`
+            ? `<span class="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">${escapeHtml(
+                failureLabel,
+              )}</span>`
             : ''
         }
-        <span class="text-xs text-gray-500">${turnLabel}</span>
+        <span class="text-xs text-gray-500">${escapeHtml(turnLabel)}</span>
         <i data-lucide="chevron-down" class="accordion__chevron"></i>
       </div>
     `;
 
     const content = document.createElement('div');
     content.className = 'accordion__content';
+    // Safe: explanation escaped
     content.innerHTML = `
       <div class="py-4">
-        <p class="text-sm text-gray-600 mb-3">${explanation}</p>
+        <p class="text-sm text-gray-600 mb-3">${escapeHtml(explanation)}</p>
         <button class="btn btn--sm btn--secondary trace-btn">
           <i data-lucide="search"></i>
           <span>View Trace</span>
@@ -259,7 +274,7 @@ export async function renderAnalysis(
       wt.summary,
       wt.explanation,
       '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2">' +
-        wt.traceData +
+        sanitiseHtml(wt.traceData) +
         '</div>',
       wt.failurePatternLabel,
     );
@@ -273,8 +288,11 @@ export async function renderAnalysis(
   rightCol.className = 'flex flex-col gap-6';
 
   const strategyContent = document.createElement('div');
-  const stratList = evaluation.strategyOverrides.map((s: string) => '<li>' + s + '</li>').join('');
+  const stratList = evaluation.strategyOverrides
+    .map((s: string) => '<li>' + escapeHtml(s) + '</li>')
+    .join('');
 
+  // Safe: dynamic list items escaped
   strategyContent.innerHTML = `
     <p class="text-sm text-gray-600 mb-4">Your next generated session will be specifically tuned to pressure-test these weaknesses.</p>
     <ul class="text-sm text-gray-800 flex flex-col gap-2 mb-4 list-disc pl-4">
@@ -295,27 +313,28 @@ export async function renderAnalysis(
   if (session.strategyUpdate) {
     const strat = session.strategyUpdate;
     const introCardContent = document.createElement('div');
+    // Safe: dynamic fields escaped
     introCardContent.innerHTML = `
       <div class="text-sm text-gray-700 space-y-4">
         <div class="flex items-center gap-2 text-accent border-b pb-2">
           <i data-lucide="bot"></i>
-          <span class="font-medium">Introspection Agent Report (${strat.id})</span>
+          <span class="font-medium">Introspection Agent Report (${escapeHtml(strat.id)})</span>
         </div>
         <div>
           <h4 class="font-semibold text-gray-900 mb-1">What Failed</h4>
-          <p class="leading-relaxed text-gray-600">${strat.whatFailed}</p>
+          <p class="leading-relaxed text-gray-600">${escapeHtml(strat.whatFailed)}</p>
         </div>
         <div>
           <h4 class="font-semibold text-gray-900 mb-1">Why It Failed</h4>
-          <p class="leading-relaxed text-gray-600">${strat.whyItFailed}</p>
+          <p class="leading-relaxed text-gray-600">${escapeHtml(strat.whyItFailed)}</p>
         </div>
         <div>
           <h4 class="font-semibold text-gray-900 mb-1">What to do next time</h4>
-          <p class="leading-relaxed text-gray-600">${strat.whatToDoNextTime}</p>
+          <p class="leading-relaxed text-gray-600">${escapeHtml(strat.whatToDoNextTime)}</p>
         </div>
         <div>
           <h4 class="font-semibold text-gray-900 mb-1">What to avoid</h4>
-          <p class="leading-relaxed text-gray-600">${strat.whatToAvoidNextTime}</p>
+          <p class="leading-relaxed text-gray-600">${escapeHtml(strat.whatToAvoidNextTime)}</p>
         </div>
       </div>
     `;
@@ -337,7 +356,7 @@ export async function renderAnalysis(
         openModal(
           'Next Session Strategy Profile',
           '<div class="bg-gray-50 p-4 rounded-md border text-sm text-gray-800 font-mono" style="white-space: pre-wrap">SYSTEM PROMPT OVERRIDES:\n' +
-            evaluation.strategyOverrides.map((o: string) => '- ' + o).join('\n') +
+            evaluation.strategyOverrides.map((o: string) => '- ' + escapeHtml(o)).join('\n') +
             '</div>',
         );
       });
@@ -347,6 +366,7 @@ export async function renderAnalysis(
   // Modal Container
   const modalOverlay = document.createElement('div');
   modalOverlay.className = 'modal-overlay';
+  // Safe: static HTML shell
   modalOverlay.innerHTML = `
     <div class="modal-container">
       <div class="flex justify-between items-center mb-4 border-b pb-2">
@@ -362,6 +382,7 @@ export async function renderAnalysis(
 
   const openModal = (title: string, htmlContent: string) => {
     document.getElementById('modal-title')!.textContent = title;
+    // Safe: content explicitly sanitised before passed to openModal
     document.getElementById('modal-body')!.innerHTML = htmlContent;
     modalOverlay.classList.add('modal-overlay--open');
     refreshIcons();

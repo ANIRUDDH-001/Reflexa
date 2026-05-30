@@ -5,6 +5,7 @@ import { createCard } from '../components/card';
 import { createProgress } from '../components/progress';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
+import { escapeHtml } from '../utils/dom';
 
 // Phoenix Cloud base URL for trace links
 const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
@@ -32,6 +33,7 @@ export async function renderInterview(
   isPaused = false;
   currentSessionId = params?.id || null;
 
+  // Safe: explicitly cleared
   container.innerHTML = '';
 
   const layout = document.createElement('div');
@@ -48,6 +50,7 @@ export async function renderInterview(
 
   const headerInfo = document.createElement('div');
   headerInfo.className = 'flex items-center gap-3';
+  // Safe: hardcoded static HTML
   headerInfo.innerHTML = `
     <div class="font-semibold text-gray-900" id="header-role">Loading...</div>
     <div id="header-badge"></div>
@@ -142,6 +145,7 @@ export async function renderInterview(
 
   const rubricContent = document.createElement('div');
   rubricContent.id = 'rubric-content';
+  // Safe: hardcoded static HTML
   rubricContent.innerHTML = '<div class="text-sm text-gray-500">Loading session metrics...</div>';
   sidebar.appendChild(createCard({ title: 'Session Metadata', content: rubricContent }));
 
@@ -161,7 +165,7 @@ export async function renderInterview(
     msgEl.dataset.messageId = msg.id;
 
     const traceHtml =
-      msg.traceId && msg.traceId !== 'unknown'
+      msg.traceId && msg.traceId !== 'unknown' && /^[0-9a-f]{32}$/.test(msg.traceId)
         ? `<div class="trace-link-wrap">
              <a class="trace-link" href="${PHOENIX_TRACE_BASE}/${msg.traceId}" target="_blank" rel="noopener noreferrer">
                🔍 View in Phoenix
@@ -169,10 +173,14 @@ export async function renderInterview(
            </div>`
         : '';
 
+    // Safe: escaped msg.text and traceHtml
     msgEl.innerHTML = `
       <div class="message__avatar"><i data-lucide="${msg.role === 'ai' ? 'bot' : 'user'}"></i></div>
       <div class="message__content">
-        <div class="message__bubble">${msg.text}${traceHtml}</div>
+        <div class="message__bubble">${escapeHtml(msg.text).replace(
+          /\n/g,
+          '<br>',
+        )}${traceHtml}</div>
       </div>
     `;
     return msgEl;
@@ -182,6 +190,7 @@ export async function renderInterview(
     const el = document.createElement('div');
     el.className = 'message message--ai';
     el.id = 'typing-indicator';
+    // Safe: hardcoded typing indicator HTML
     el.innerHTML = `
       <div class="message__avatar"><i data-lucide="bot"></i></div>
       <div class="message__content">
@@ -233,6 +242,7 @@ export async function renderInterview(
             aiBubble = document.createElement('div');
             aiBubble.className = 'message message--ai';
             aiBubble.dataset.messageId = aiBubbleId;
+            // Safe: hardcoded streaming bubble HTML
             aiBubble.innerHTML = `
               <div class="message__avatar"><i data-lucide="bot"></i></div>
               <div class="message__content">
@@ -254,7 +264,11 @@ export async function renderInterview(
             if (textEl) textEl.removeAttribute('id');
 
             // Append Phoenix trace link
-            if (event.traceId && event.traceId !== 'unknown') {
+            if (
+              event.traceId &&
+              event.traceId !== 'unknown' &&
+              /^[0-9a-f]{32}$/.test(event.traceId)
+            ) {
               const linkWrap = document.createElement('div');
               linkWrap.className = 'trace-link-wrap';
               const link = document.createElement('a');
@@ -278,6 +292,7 @@ export async function renderInterview(
           // Update sidebar turn counter
           const progressEl = document.getElementById('progress-content');
           if (progressEl) {
+            // Safe: clearing contents
             progressEl.innerHTML = '';
             currentScore = Math.min(currentScore + 5, 100); // incremental hint
             progressEl.appendChild(
@@ -327,6 +342,7 @@ export async function renderInterview(
 
   const updateState = () => {
     // Re-render all persisted messages (used on initial load and pause toggle)
+    // Safe: clearing contents
     messagesContainer.innerHTML = '';
     messages.forEach((msg) => {
       messagesContainer.appendChild(buildMessageEl(msg));
@@ -347,12 +363,14 @@ export async function renderInterview(
       setComposerDisabled(false);
     }
 
+    // Safe: hardcoded HTML switch
     pauseBtn.innerHTML = isPaused
       ? '<i data-lucide="play-circle"></i><span>Resume</span>'
       : '<i data-lucide="pause-circle"></i><span>Suspend</span>';
 
     const progressEl = document.getElementById('progress-content');
     if (progressEl) {
+      // Safe: clearing contents
       progressEl.innerHTML = '';
       progressEl.appendChild(
         createProgress({
@@ -374,6 +392,7 @@ export async function renderInterview(
       document.getElementById('header-role')!.textContent = (
         session.config.role || 'Engineer'
       ).toUpperCase();
+      // Safe: createBadge returns safe DOM element outerHTML
       document.getElementById('header-badge')!.innerHTML = createBadge({
         label: session.config.style || 'Technical',
         variant: 'neutral',
@@ -394,14 +413,17 @@ export async function renderInterview(
         if (lastAiMsg.payload.metadata?.scoreHint)
           currentScore = lastAiMsg.payload.metadata.scoreHint;
 
+        // Safe: escaped dynamic values
         document.getElementById('rubric-content')!.innerHTML = `
           <div class="text-sm font-medium mb-1">Last Action</div>
-          <div class="text-sm text-gray-600 mb-3">${
-            session.lastAgentAction || 'Started session'
-          }</div>
+          <div class="text-sm text-gray-600 mb-3">${escapeHtml(
+            session.lastAgentAction || 'Started session',
+          )}</div>
           ${
             lastAiMsg.payload.metadata?.status
-              ? '<div class="text-sm text-accent">' + lastAiMsg.payload.metadata.status + '</div>'
+              ? '<div class="text-sm text-accent">' +
+                escapeHtml(lastAiMsg.payload.metadata.status) +
+                '</div>'
               : ''
           }
         `;
