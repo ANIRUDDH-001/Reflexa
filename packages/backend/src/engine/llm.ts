@@ -1,3 +1,4 @@
+import { SemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import { BackendSessionState } from '../state/types';
@@ -58,7 +59,7 @@ export async function processTurn(
     'processTurn',
     {
       attributes: {
-        'openinference.span.kind': 'AGENT',
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'AGENT',
         'session.id': state.id,
       },
     },
@@ -80,14 +81,26 @@ export async function processTurn(
               'gemini_chat',
               {
                 attributes: {
-                  'openinference.span.kind': 'LLM',
+                  [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
                   'session.id': state.id,
-                  'llm.model_name': model,
-                  'llm.input_messages': JSON.stringify(history),
+                  [SemanticConventions.LLM_MODEL_NAME]: model,
                 },
               },
               async (llmSpan) => {
                 try {
+                  if (Array.isArray(history)) {
+                    history.forEach((msg, idx) => {
+                      llmSpan.setAttribute(
+                        `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.role`,
+                        msg.role ?? 'user',
+                      );
+                      llmSpan.setAttribute(
+                        `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.content`,
+                        JSON.stringify(msg.parts || msg),
+                      );
+                    });
+                  }
+
                   const chat = ai.chats.create({
                     model,
                     history,
@@ -104,8 +117,12 @@ export async function processTurn(
 
                   if (rawText) {
                     llmSpan.setAttribute(
-                      'llm.output_messages',
-                      JSON.stringify([{ role: 'model', content: rawText }]),
+                      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.role`,
+                      'model',
+                    );
+                    llmSpan.setAttribute(
+                      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.content`,
+                      rawText,
                     );
                   }
 
@@ -335,12 +352,12 @@ export async function generateEvaluation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   traceData: Array<{ type: string; payload?: any }>,
   sessionId?: string,
-): Promise<EvaluationResultData> {
+): Promise<EvaluationResultData & { traceId: string }> {
   return tracer.startActiveSpan(
     'generateEvaluation',
     {
       attributes: {
-        'openinference.span.kind': 'EVALUATOR',
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'EVALUATOR',
         'session.id': sessionId || 'unknown',
       },
     },
@@ -363,14 +380,22 @@ export async function generateEvaluation(
               'gemini_eval',
               {
                 attributes: {
-                  'openinference.span.kind': 'LLM',
+                  [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
                   'session.id': sessionId || 'unknown',
-                  'llm.model_name': model,
-                  'llm.input_messages': JSON.stringify([{ role: 'user', content: traceText }]),
+                  [SemanticConventions.LLM_MODEL_NAME]: model,
                 },
               },
               async (llmSpan) => {
                 try {
+                  llmSpan.setAttribute(
+                    `${SemanticConventions.LLM_INPUT_MESSAGES}.0.message.role`,
+                    'user',
+                  );
+                  llmSpan.setAttribute(
+                    `${SemanticConventions.LLM_INPUT_MESSAGES}.0.message.content`,
+                    traceText,
+                  );
+
                   const response = await ai.models.generateContent({
                     model,
                     contents: traceText,
@@ -385,13 +410,25 @@ export async function generateEvaluation(
                   const rawText = response.text;
                   if (rawText) {
                     llmSpan.setAttribute(
-                      'llm.output_messages',
-                      JSON.stringify([{ role: 'model', content: rawText }]),
+                      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.role`,
+                      'model',
+                    );
+                    llmSpan.setAttribute(
+                      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.content`,
+                      rawText,
                     );
                   }
 
                   if (!rawText) throw new Error('Empty response from LLM');
-                  return JSON.parse(rawText);
+
+                  const result = JSON.parse(rawText);
+                  const traceId = evalSpan.spanContext().traceId;
+
+                  evalSpan.setAttributes({
+                    'evaluation.overall_score': result.rubric?.overall ?? 0,
+                  });
+
+                  return { ...result, traceId };
                 } catch (err) {
                   llmSpan.recordException(err as Error);
                   throw err;

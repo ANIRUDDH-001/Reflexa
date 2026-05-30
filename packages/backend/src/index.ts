@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import './telemetry';
-import { trace } from '@opentelemetry/api';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response, NextFunction } from 'express';
@@ -441,8 +440,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
     session.strategyVersion = newVersionId;
     session.activeStrategyRules = introspection.newRules;
 
-    const traceId = trace.getActiveSpan()?.spanContext().traceId;
-    session.evalTraceId = traceId;
+    session.evalTraceId = evaluation.traceId;
 
     await saveSession(session);
 
@@ -450,7 +448,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       status: 'completed' as const,
       analysisSummary: evaluation.summary,
       strategySummary: introspection.whatFailed,
-      traceId,
+      traceId: evaluation.traceId,
     };
 
     const parsedRes = APIContracts.EndSessionResponse.safeParse(responsePayload);
