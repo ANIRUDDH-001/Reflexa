@@ -465,7 +465,15 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
     // Save new strategy version
     const newVersionId = `v${Date.now()}`;
-    await saveStrategy(newVersionId, introspection.newRules);
+    try {
+      await saveStrategy(newVersionId, introspection.newRules ?? session.activeStrategyRules);
+    } catch (strategyErr) {
+      logger.error(
+        { sessionId: session.id, newVersionId, err: strategyErr },
+        '[end] saveStrategy failed — session evaluation will be saved without new strategy version',
+      );
+      // Continue — the session evaluation is more important than the strategy version
+    }
 
     evaluation.strategyOverrides = introspection.newRules;
 
@@ -485,7 +493,20 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
     session.evalTraceId = evaluation.traceId;
 
-    await saveSession(session);
+    try {
+      await saveSession(session);
+    } catch (sessionErr) {
+      logger.error(
+        {
+          sessionId: session.id,
+          newVersionId,
+          err: sessionErr,
+        },
+        '[end] saveSession failed after saveStrategy succeeded — strategy version orphaned. Needs manual cleanup.',
+      );
+      // Re-throw so the client gets a 500 and can retry
+      throw sessionErr;
+    }
 
     const responsePayload = {
       status: 'completed' as const,
@@ -570,13 +591,23 @@ app.use((req: Request, res: Response) => {
 });
 
 // ── Global error handler ───────────────────────────────────────
-// Catches any error thrown inside a route handler that reaches here.
-// Prevents Express from returning HTML error pages to API clients.
+// Catches unhandled errors from route handlers.
+// Returns JSON instead of Express's default HTML error page which leaks stack traces.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const message = err instanceof Error ? err.message : 'Internal server error';
-  const stack = err instanceof Error ? err.stack : undefined;
-  logger.error({ err, stack }, '[global] Unhandled route error');
-  res.status(500).json({ error: 'Internal server error', detail: message });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+  const isOperational = err instanceof Error && (err as any).isOperational === true;
+
+  logger.error({ err }, '[global] Unhandled error in route handler');
+
+  if (res.headersSent) return; // cannot send error if response already started (e.g., SSE)
+
+  res.status(500).json({
+    error: 'Internal server error',
+    // Only include message in development — never leak stack traces to clients
+    ...(process.env.NODE_ENV === 'development' ? { detail: message } : {}),
+  });
 });
 
 // Export app for supertest integration tests
