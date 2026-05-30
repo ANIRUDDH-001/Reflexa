@@ -16,7 +16,7 @@ export async function initMcpClient(): Promise<Client> {
   logger.info('Initializing Phoenix MCP Client...');
 
   const mcpBinaryName = process.platform === 'win32' ? 'phoenix-mcp.cmd' : 'phoenix-mcp';
-  const mcpBinaryPath = resolve(process.cwd(), 'node_modules', '.bin', mcpBinaryName);
+  const mcpBinaryPath = resolve(__dirname, '../../node_modules/.bin', mcpBinaryName);
 
   transport = new StdioClientTransport({
     command: mcpBinaryPath,

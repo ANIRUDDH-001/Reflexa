@@ -1,12 +1,18 @@
-import { api } from '../api';
+import { api, PHOENIX_TRACE_BASE } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
-import { escapeHtml, sanitiseHtml } from '../utils/dom';
+import { escapeHtml } from '../utils/dom';
 
-const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
+function toTitleCase(str: string): string {
+  if (!str) return str;
+  return str
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
 let isComparing = false;
 let currentSessionId: string | null = null;
@@ -296,15 +302,26 @@ export async function renderAnalysis(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   evaluation.weakTurns.forEach((wt: any) => {
+    // Cross-reference turn numbers with actual session trace payloads
+    const turnTextData = wt.turns
+      .map((tn: number) => {
+        const traceMsg = session.trace[tn - 1];
+        if (!traceMsg || !traceMsg.payload) return `Turn ${tn}: [Data missing]`;
+        return `Turn ${tn} (${traceMsg.type === 'ai_message' ? 'AI' : 'User'}):\n${escapeHtml(
+          traceMsg.payload.text || '',
+        )}`;
+      })
+      .join('\n\n');
+
     const accordion = createAccordion(
       { label: 'Improvement Area', variant: 'warning' },
-      wt.turnLabel,
+      `Turns ${wt.turns.join(' & ')}`,
       wt.summary,
       wt.explanation,
-      '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2">' +
-        sanitiseHtml(wt.traceData) +
+      '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2 whitespace-pre-wrap">' +
+        turnTextData +
         '</div>',
-      wt.failurePatternLabel,
+      toTitleCase(wt.failureType || wt.type),
     );
     weakTurnsCardContent.appendChild(accordion);
   });

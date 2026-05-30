@@ -11,9 +11,9 @@ import { shutdownMcpClient } from './engine/mcp';
 
 // Sanitize Phoenix Cloud endpoint
 let collectorUrl = process.env.PHOENIX_COLLECTOR_ENDPOINT || 'http://localhost:6006/v1/traces';
-if (collectorUrl.includes('app.phoenix.arize.com')) {
-  // Ensure it points to the OTLP ingest endpoint, not a UI route like /s/project-name
-  collectorUrl = 'https://app.phoenix.arize.com/v1/traces';
+if (collectorUrl.includes('app.phoenix.arize.com') && !collectorUrl.endsWith('/v1/traces')) {
+  // If the user provided a UI URL like /s/project-name, append the OTLP ingest path
+  collectorUrl = collectorUrl.replace(/\/+$/, '') + '/v1/traces';
 }
 
 const traceExporter = new OTLPTraceExporter({

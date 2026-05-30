@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import './styles.css';
 import { API_BASE, api, setCurrentUserId } from './api';
+import { setPhoenixTraceBase } from './api';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
 import { createShell } from './shell';
@@ -24,6 +25,15 @@ function getOrCreateUserId(): string {
 export const CURRENT_USER_ID = getOrCreateUserId();
 // Wire up the api module immediately so all fetch calls carry the header
 setCurrentUserId(CURRENT_USER_ID);
+
+api
+  .getConfig()
+  .then((cfg) => {
+    if (cfg && cfg.phoenixTraceBase) {
+      setPhoenixTraceBase(cfg.phoenixTraceBase);
+    }
+  })
+  .catch((err) => console.error('Failed to load Phoenix trace config:', err));
 
 // ── Global error boundary ─────────────────────────────────────────────────────
 function showGlobalError(message: string): void {

@@ -65,11 +65,8 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     `;
 
     /* ---------- Recent sessions ---------- */
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recentSessions = sessions.slice(0, 3);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const listHtml = recentSessions
+    const listHtml = sessions
       .map((s: any) => {
         const date = new Date(s.startedAt).toLocaleDateString();
         const role = s.config?.role || 'Engineer';
@@ -105,9 +102,12 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
 
         ${statsHtml}
 
-        <h3 class="text-lg font-semibold mb-4">Recent Sessions</h3>
-        ${listHtml}
+        <h3 class="text-lg font-semibold mb-4">All Sessions</h3>
+        <div style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+          ${listHtml}
+        </div>
       </div>
+
     `;
 
     refreshIcons();

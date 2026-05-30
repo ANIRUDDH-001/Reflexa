@@ -1,4 +1,4 @@
-import { api, sendTurnStream } from '../api';
+import { api, sendTurnStream, PHOENIX_TRACE_BASE } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
@@ -6,9 +6,6 @@ import { createProgress } from '../components/progress';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 import { escapeHtml } from '../utils/dom';
-
-// Phoenix Cloud base URL for trace links
-const PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
 
 interface Message {
   id: string;

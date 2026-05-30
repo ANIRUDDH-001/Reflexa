@@ -159,6 +159,24 @@ app.use(
 );
 app.use(express.json());
 
+// Expose dynamic configuration to the frontend
+app.get('/config', (req: Request, res: Response) => {
+  let traceBase = 'https://app.phoenix.arize.com/traces';
+  const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
+  // If using a Space (e.g. /s/project-name), adjust the trace base link
+  if (collector.includes('/s/')) {
+    const spacePath = collector.substring(collector.indexOf('/s/'));
+    const cleanSpacePath = spacePath.replace(/\/v1\/traces\/?$/, '').replace(/\/+$/, '');
+    if (cleanSpacePath) {
+      traceBase = `https://app.phoenix.arize.com${cleanSpacePath}/traces`;
+    }
+  }
+
+  res.json({
+    phoenixTraceBase: traceBase,
+  });
+});
+
 // Start a new session
 app.post('/session', async (req: Request, res: Response) => {
   const userId = extractUserId(req);

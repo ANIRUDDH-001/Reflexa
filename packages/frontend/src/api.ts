@@ -4,6 +4,11 @@ export const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhos
 
 import type { SessionConfig, TurnStreamEvent } from '@reflexa/shared';
 
+export let PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
+export function setPhoenixTraceBase(base: string) {
+  PHOENIX_TRACE_BASE = base;
+}
+
 // ── Lazily resolved to avoid circular import at module init time ──────────────
 // CURRENT_USER_ID is set in main.ts before any route is rendered.
 let _userId = '';
@@ -23,6 +28,12 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 }
 
 export const api = {
+  async getConfig() {
+    const res = await apiFetch('/config');
+    if (!res.ok) throw new Error(`config failed: ${res.statusText}`);
+    return res.json();
+  },
+
   async createSession(config: SessionConfig) {
     const res = await apiFetch('/session', {
       method: 'POST',
