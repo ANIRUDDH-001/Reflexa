@@ -88,18 +88,20 @@ export const SessionComparison = z.object({
   behaviorChanges: z.string(),
 });
 
-export const InterviewSession = z.object({
-  id: z.string(),
-  userId: z.string(),
-  startedAt: z.string(),
-  endedAt: z.string().nullable().optional(),
-  status: z.enum(['pending', 'in_progress', 'completed', 'abandoned']),
-  questions: z.array(Question).optional(),
-  trace: z.array(TraceEvent).optional(),
-  results: z.array(EvaluationResult).optional(),
-  evalTraceId: z.string().optional(),
-  strategyUpdate: StrategyUpdate.optional(),
-});
+export const InterviewSession = z
+  .object({
+    id: z.string(),
+    userId: z.string(),
+    startedAt: z.string(),
+    endedAt: z.string().nullable().optional(),
+    status: z.enum(['pending', 'in_progress', 'completed', 'abandoned']),
+    questions: z.array(Question).optional(),
+    trace: z.array(TraceEvent).optional(),
+    results: z.array(EvaluationResult).optional(),
+    evalTraceId: z.string().optional(),
+    strategyUpdate: StrategyUpdate.optional(),
+  })
+  .passthrough();
 
 // Type aliases
 export type SystemPromptVersion = z.infer<typeof SystemPromptVersion>;
