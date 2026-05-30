@@ -6,6 +6,7 @@ import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { shutdownMcpClient } from './engine/mcp';
 
 // Phoenix Cloud requires the api_key header on every OTLP request.
 // PHOENIX_COLLECTOR_ENDPOINT must point to https://app.phoenix.arize.com/v1/traces
@@ -34,12 +35,18 @@ registerInstrumentations({
   instrumentations: [new MCPInstrumentation()],
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   // eslint-disable-next-line no-console
-  sdk.shutdown().catch(console.error);
+  await shutdownMcpClient().catch(console.error);
+  // eslint-disable-next-line no-console
+  await sdk.shutdown().catch(console.error);
+  process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   // eslint-disable-next-line no-console
-  sdk.shutdown().catch(console.error);
+  await shutdownMcpClient().catch(console.error);
+  // eslint-disable-next-line no-console
+  await sdk.shutdown().catch(console.error);
+  process.exit(0);
 });

@@ -1,3 +1,4 @@
+import { resolve } from 'path';
 import { Type, Schema, FunctionDeclaration } from '@google/genai';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -13,9 +14,13 @@ export async function initMcpClient(): Promise<Client> {
     throw new Error('[mcp] Phoenix MCP is disabled via PHOENIX_MCP_ENABLED=false');
   }
   logger.info('Initializing Phoenix MCP Client...');
+
+  const mcpBinaryName = process.platform === 'win32' ? 'phoenix-mcp.cmd' : 'phoenix-mcp';
+  const mcpBinaryPath = resolve(process.cwd(), 'node_modules', '.bin', mcpBinaryName);
+
   transport = new StdioClientTransport({
-    command: 'npx',
-    args: ['-y', '@arizeai/phoenix-mcp'],
+    command: mcpBinaryPath,
+    args: [],
     env: {
       ...process.env,
       PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',
@@ -35,6 +40,31 @@ export async function initMcpClient(): Promise<Client> {
     transport = null;
     throw e;
   }
+}
+
+/**
+ * Gracefully shuts down the MCP client and kills the subprocess.
+ * Call this before process exit to prevent zombie processes.
+ * Shutdown order: close client → close transport → null both.
+ */
+export async function shutdownMcpClient(): Promise<void> {
+  if (mcpClient) {
+    try {
+      await mcpClient.close();
+    } catch (err) {
+      logger.warn('[mcp] Error closing MCP client during shutdown:', err);
+    }
+    mcpClient = null;
+  }
+  if (transport) {
+    try {
+      await transport.close();
+    } catch (err) {
+      logger.warn('[mcp] Error closing MCP transport during shutdown:', err);
+    }
+    transport = null;
+  }
+  logger.info('[mcp] MCP client shut down');
 }
 
 export async function getOrInitMcpClient(): Promise<Client> {
