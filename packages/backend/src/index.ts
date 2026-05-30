@@ -58,6 +58,40 @@ function extractUserId(req: Request): string | null {
   );
 }
 
+/**
+ * Fetches a session and verifies the requesting user owns it.
+ * Returns the session if ownership is confirmed.
+ * Sends the appropriate error response and returns null if not.
+ *
+ * Usage:
+ *   const session = await requireSessionOwnership(req, res, req.params.id);
+ *   if (!session) return; // response already sent
+ */
+async function requireSessionOwnership(
+  req: Request,
+  res: Response,
+  sessionId: string,
+): Promise<BackendSessionState | null> {
+  const session = await getSession(sessionId);
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return null;
+  }
+
+  const requestUserId = extractUserId(req);
+  if (!requestUserId) {
+    res.status(401).json({ error: 'Authentication required. Send X-User-Id header.' });
+    return null;
+  }
+
+  if (session.userId !== requestUserId) {
+    res.status(403).json({ error: 'Forbidden. You do not have access to this session.' });
+    return null;
+  }
+
+  return session;
+}
+
 // Time-aware phase transitions based on configured session length.
 function updateSessionPhase(session: BackendSessionState): void {
   const PHASE_TURNS: Record<string, [number, number]> = {
@@ -193,11 +227,8 @@ app.post('/session', async (req: Request, res: Response) => {
 // Fetch current session state
 app.get('/session/:id', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = await getSession(sessionId);
-
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
 
   const responsePayload = { session };
   const parsedRes = APIContracts.GetSessionResponse.safeParse(responsePayload);
@@ -211,11 +242,8 @@ app.get('/session/:id', async (req: Request, res: Response) => {
 // Submit an answer (user turn)
 app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = await getSession(sessionId);
-
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
   if (session.status !== 'in_progress') {
     return res.status(400).json({ error: 'Session is not active' });
   }
@@ -291,8 +319,8 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
     return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
   }
 
-  const session = await getSession(sessionId);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
   if (session.status !== 'in_progress') {
     return res.status(400).json({ error: 'Session is not in progress' });
   }
@@ -358,10 +386,23 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
 // Close a session
 app.post('/session/:id/end', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = await getSession(sessionId);
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
 
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+  // Idempotency: if already completed, return existing data without re-running evaluation
+  if (session.status === 'completed') {
+    logger.info({ sessionId: session.id }, 'Session already completed — returning existing state');
+    return res.json({
+      session,
+      message: 'Session was already completed. Returning existing evaluation.',
+    });
+  }
+
+  // Status guard: only in_progress sessions can be ended
+  if (session.status !== 'in_progress') {
+    return res.status(400).json({
+      error: `Cannot end a session with status '${session.status}'. Only in_progress sessions can be ended.`,
+    });
   }
 
   const parsedBody = APIContracts.EndSessionRequest.safeParse(req.body);
@@ -444,8 +485,8 @@ app.get('/sessions', async (req: Request, res: Response) => {
 // Compare session to previous
 app.get('/session/:id/compare', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
-  const session = await getSession(sessionId);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
 
   const history = await getHistorySessions(session.userId);
   const currentIndex = history.findIndex((h) => h.id === sessionId);

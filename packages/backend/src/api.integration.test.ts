@@ -2,26 +2,35 @@ import request from 'supertest';
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { app } from './index';
 
-vi.mock('./state/db', () => ({
-  getLatestStrategy: vi.fn().mockResolvedValue({ version: 'v1.0.0', rules: [] }),
-  saveStrategy: vi.fn().mockResolvedValue(true),
-  getSession: vi.fn().mockImplementation((id) => {
-    if (id.includes('non-existent')) return Promise.resolve(null);
-    return Promise.resolve({
-      id,
-      userId: 'test-user',
-      status: 'in_progress',
-      startedAt: new Date().toISOString(),
-      interviewPhase: 'intro',
-      strategyVersion: 'v1',
-      config: { role: 'backend', difficulty: 'mid', style: 'technical', timeLimit: '30' },
-      turnCount: 0,
-      trace: [],
-    });
-  }),
-  saveSession: vi.fn().mockResolvedValue(true),
-  getHistorySessions: vi.fn().mockResolvedValue([{ id: 'sess-1' }]),
-}));
+vi.mock('./state/db', () => {
+  const sessions = new Map();
+  return {
+    getLatestStrategy: vi.fn().mockResolvedValue({ version: 'v1.0.0', rules: [] }),
+    saveStrategy: vi.fn().mockResolvedValue(true),
+    getSession: vi.fn().mockImplementation((id) => {
+      if (id.includes('non-existent')) return Promise.resolve(null);
+      if (!sessions.has(id)) {
+        sessions.set(id, {
+          id,
+          userId: 'test-user',
+          status: 'in_progress',
+          startedAt: new Date().toISOString(),
+          interviewPhase: 'intro',
+          strategyVersion: 'v1',
+          config: { role: 'backend', difficulty: 'mid', style: 'technical', timeLimit: '30' },
+          turnCount: 0,
+          trace: [],
+        });
+      }
+      return Promise.resolve(sessions.get(id));
+    }),
+    saveSession: vi.fn().mockImplementation((session) => {
+      sessions.set(session.id, session);
+      return Promise.resolve(true);
+    }),
+    getHistorySessions: vi.fn().mockResolvedValue([{ id: 'sess-1' }]),
+  };
+});
 
 vi.mock('./engine/llm', () => ({
   processTurn: vi.fn().mockResolvedValue({ agentMessage: 'Hello', traceId: '123' }),
@@ -76,13 +85,15 @@ describe('API Integration Tests', () => {
         .send({ config: {} });
       const id = createRes.body.session.id;
 
-      const getRes = await request(app).get(`/session/${id}`);
+      const getRes = await request(app).get(`/session/${id}`).set('X-User-Id', TEST_USER_ID);
       expect(getRes.status).toBe(200);
       expect(getRes.body.session.id).toBe(id);
     });
 
     it('returns 404 for non-existent id', async () => {
-      const getRes = await request(app).get(`/session/non-existent-12345`);
+      const getRes = await request(app)
+        .get(`/session/non-existent-12345`)
+        .set('X-User-Id', TEST_USER_ID);
       expect(getRes.status).toBe(404);
     });
   });
@@ -131,7 +142,9 @@ describe('API Integration Tests', () => {
         .send({ config: {} });
       const id = createRes.body.session.id;
 
-      const res = await request(app).get(`/session/${id}/compare`);
+      const res = await request(app)
+        .get(`/session/${id}/compare`)
+        .set('X-User-Id', 'compare-user-1');
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('comparison', null);
     });
@@ -149,6 +162,31 @@ describe('API Integration Tests', () => {
       const res = await request(app).get('/sessions');
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('user identity');
+    });
+  });
+  describe('Session ownership enforcement', () => {
+    it('GET /session/:id with no X-User-Id returns 401', async () => {
+      const res = await request(app).get('/session/demo-session-1');
+      expect(res.status).toBe(401);
+      expect(res.body).toHaveProperty('error');
+    });
+
+    it('GET /session/:id with wrong X-User-Id returns 403', async () => {
+      const res = await request(app).get('/session/demo-session-1').set('X-User-Id', 'wrong-user');
+      expect(res.status).toBe(403);
+      expect(res.body).toHaveProperty('error');
+    });
+
+    it('POST /session/:id/end on completed session returns 200 without re-running evaluation', async () => {
+      // First end
+      await request(app).post('/session/demo-session-1/end').set('X-User-Id', 'test-user');
+
+      // Second end — should be idempotent
+      const res = await request(app)
+        .post('/session/demo-session-1/end')
+        .set('X-User-Id', 'test-user');
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain('already completed');
     });
   });
 });
