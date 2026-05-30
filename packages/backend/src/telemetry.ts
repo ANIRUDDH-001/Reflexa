@@ -9,11 +9,15 @@ import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
 
-// Phoenix Cloud requires the api_key header on every OTLP request.
-// PHOENIX_COLLECTOR_ENDPOINT must point to https://app.phoenix.arize.com/v1/traces
-// PHOENIX_API_KEY is your Phoenix Cloud API key from app.phoenix.arize.com > Settings
+// Sanitize Phoenix Cloud endpoint
+let collectorUrl = process.env.PHOENIX_COLLECTOR_ENDPOINT || 'http://localhost:6006/v1/traces';
+if (collectorUrl.includes('app.phoenix.arize.com')) {
+  // Ensure it points to the OTLP ingest endpoint, not a UI route like /s/project-name
+  collectorUrl = 'https://app.phoenix.arize.com/v1/traces';
+}
+
 const traceExporter = new OTLPTraceExporter({
-  url: process.env.PHOENIX_COLLECTOR_ENDPOINT || 'http://localhost:6006/v1/traces',
+  url: collectorUrl,
   headers: {
     api_key: process.env.PHOENIX_API_KEY || '',
   },

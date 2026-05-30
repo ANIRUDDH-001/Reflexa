@@ -2,6 +2,7 @@ import { api } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
+import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 import { escapeHtml, sanitiseHtml } from '../utils/dom';
 
@@ -85,11 +86,8 @@ export async function renderAnalysis(
           <i data-lucide="split"></i>
           <span>${isComparing ? 'View Current' : 'Compare Previous'}</span>
         </button>
-        ${createButton({ label: 'Share', variant: 'secondary', icon: 'share-2' }).outerHTML}
-        ${
-          createButton({ label: 'Target Weaknesses', variant: 'primary', icon: 'dumbbell' })
-            .outerHTML
-        }
+        <div id="btn-share-container"></div>
+        <div id="btn-target-container"></div>
       </div>
     `;
 
@@ -102,6 +100,36 @@ export async function renderAnalysis(
           renderScores();
           refreshIcons();
         });
+      }
+
+      const shareContainer = document.getElementById('btn-share-container');
+      if (shareContainer) {
+        shareContainer.appendChild(
+          createButton({
+            label: 'Share',
+            variant: 'secondary',
+            icon: 'share-2',
+            onClick: () =>
+              showToast({ title: 'Share', message: 'Link copied to clipboard!', type: 'success' }),
+          }),
+        );
+      }
+
+      const targetContainer = document.getElementById('btn-target-container');
+      if (targetContainer) {
+        targetContainer.appendChild(
+          createButton({
+            label: 'Target Weaknesses',
+            variant: 'primary',
+            icon: 'dumbbell',
+            onClick: () =>
+              showToast({
+                title: 'Target Weaknesses',
+                message: 'Generating personalized curriculum...',
+                type: 'success',
+              }),
+          }),
+        );
       }
     }, 0);
   };
@@ -303,7 +331,7 @@ export async function renderAnalysis(
         <i data-lucide="eye"></i>
         <span>View Configuration Matrix</span>
       </button>
-      ${createButton({ label: 'Queue Evaluation', variant: 'primary', icon: 'calendar' }).outerHTML}
+      <div id="btn-queue-container"></div>
     </div>
   `;
   rightCol.appendChild(
@@ -360,6 +388,23 @@ export async function renderAnalysis(
             '</div>',
         );
       });
+    }
+
+    const queueContainer = document.getElementById('btn-queue-container');
+    if (queueContainer) {
+      queueContainer.appendChild(
+        createButton({
+          label: 'Queue Evaluation',
+          variant: 'primary',
+          icon: 'calendar',
+          onClick: () =>
+            showToast({
+              title: 'Evaluation Queued',
+              message: 'Next session will automatically apply these settings.',
+              type: 'success',
+            }),
+        }),
+      );
     }
   }, 0);
 

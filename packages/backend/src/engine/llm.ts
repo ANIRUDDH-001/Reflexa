@@ -395,8 +395,15 @@ export async function generateEvaluation(
           .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
           .join('\n\n');
 
+        const userMessageCount = traceData.filter((t) => t.type === 'user_message').length;
+        const penaltyClause =
+          userMessageCount < 2
+            ? `\n\nCRITICAL INSTRUCTION: This trace is extremely short (only ${userMessageCount} user reply). The candidate abandoned the interview early or just said "hi". You MUST assign a 0 to all rubric scores, state explicitly in the summary that the interview was abandoned, and provide strategy overrides to engage the user faster.`
+            : '';
+
         const systemInstruction =
-          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.";
+          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides." +
+          penaltyClause;
 
         for (const model of MODELS) {
           try {
