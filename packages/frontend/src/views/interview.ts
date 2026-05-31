@@ -416,6 +416,16 @@ export async function renderInterview(
             traceId: t.traceId,
           }));
 
+        // Render the complete conversation history into the chat container.
+        // Without this, the messages array is set but the DOM is never updated,
+        // leaving the chat blank on reload.
+        messagesContainer.innerHTML = ''; // clear any placeholder
+        messages.forEach((msg) => {
+          messagesContainer.appendChild(buildMessageEl(msg));
+        });
+        // Scroll to the most recent message
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const aiMsgs = session.trace.filter((t: any) => t.type === 'ai_message');
         const lastAiMsg = aiMsgs[aiMsgs.length - 1];

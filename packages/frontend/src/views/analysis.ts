@@ -4,7 +4,7 @@ import { createButton } from '../components/button';
 import { createCard } from '../components/card';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
-import { escapeHtml } from '../utils/dom';
+import { escapeHtml, sanitiseHtml } from '../utils/dom';
 
 function toTitleCase(str: string): string {
   if (!str) return str;
@@ -308,7 +308,7 @@ export async function renderAnalysis(
       wt.summary,
       wt.explanation,
       '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2 whitespace-pre-wrap">' +
-        (wt.traceData || 'No trace data provided') +
+        sanitiseHtml(wt.traceData || 'No trace data provided') +
         '</div>',
       toTitleCase(wt.failurePatternLabel),
     );
@@ -432,9 +432,9 @@ export async function renderAnalysis(
   container.appendChild(modalOverlay);
 
   const openModal = (title: string, htmlContent: string) => {
-    document.getElementById('modal-title')!.textContent = title;
-    // Safe: content explicitly sanitised before passed to openModal
-    document.getElementById('modal-body')!.innerHTML = htmlContent;
+    document.getElementById('modal-title')!.textContent = title; // textContent is always safe
+    // Defence-in-depth: sanitise even if caller already sanitised
+    document.getElementById('modal-body')!.innerHTML = sanitiseHtml(htmlContent);
     modalOverlay.classList.add('modal-overlay--open');
     refreshIcons();
   };
