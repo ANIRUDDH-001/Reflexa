@@ -1,8 +1,10 @@
 node_modules
 **/node_modules
+.git
 **/.env
 **/.env.local
 **/dist
-.git
 *.db
-**/*.tsbuildinfo
+packages/data
+packages/frontend
+debug.json
