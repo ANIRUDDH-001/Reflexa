@@ -387,6 +387,50 @@ export async function generateEvaluation(
     },
     async (evalSpan) => {
       try {
+        const userMessageCount = traceData.filter((t) => t.type === 'user_message').length;
+
+        // ── EARLY RETURN: insufficient data ───────────────────────────────
+        // Do NOT call the LLM for sessions with < 2 user messages.
+        // The LLM cannot produce meaningful evaluation data from a single greeting
+        // and will generate misleading non-zero scores regardless of instructions.
+        if (userMessageCount < 2) {
+          const traceId = evalSpan.spanContext().traceId;
+          evalSpan.setAttributes({ 'evaluation.overall_score': 0, 'evaluation.abandoned': true });
+
+          return {
+            rubric: {
+              relevance: 0,
+              depth: 0,
+              clarity: 0,
+              adaptability: 0,
+              pacing: 0,
+              missedOpportunities: 0,
+              overall: 0,
+            },
+            summary:
+              `Session abandoned after ${userMessageCount} user message(s). ` +
+              `Insufficient data to evaluate interview quality. ` +
+              `Consider adjusting the opening question to better engage the candidate faster.`,
+            weakTurns: [
+              {
+                turnLabel: 'Full session',
+                summary: 'Session abandoned before evaluation data could be collected',
+                explanation:
+                  `The candidate sent only ${userMessageCount} message(s) before the session ended. ` +
+                  `No meaningful assessment of depth, clarity, or adaptability is possible.`,
+                traceData: '',
+                failurePatternLabel: 'session_abandoned',
+              },
+            ],
+            strategyOverrides: [
+              'Open with a concrete, compelling scenario immediately to engage the candidate faster.',
+              'Ask a question that has a clear right/wrong direction so the candidate feels invested.',
+            ],
+            traceId,
+          };
+        }
+        // ── END EARLY RETURN ──────────────────────────────────────────────
+
         const ai = new GoogleGenAI({
           apiKey: process.env.GOOGLE_API_KEY || '',
         });
@@ -395,15 +439,8 @@ export async function generateEvaluation(
           .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
           .join('\n\n');
 
-        const userMessageCount = traceData.filter((t) => t.type === 'user_message').length;
-        const penaltyClause =
-          userMessageCount < 2
-            ? `\n\nCRITICAL INSTRUCTION: This trace is extremely short (only ${userMessageCount} user reply). The candidate abandoned the interview early or just said "hi". You MUST assign a 0 to all rubric scores, state explicitly in the summary that the interview was abandoned, and provide strategy overrides to engage the user faster.`
-            : '';
-
         const systemInstruction =
-          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides." +
-          penaltyClause;
+          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.";
 
         for (const model of MODELS) {
           try {
