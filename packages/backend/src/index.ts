@@ -11,6 +11,7 @@ import pinoHttp from 'pino-http';
 import { runIntrospection } from './engine/introspection';
 import { processTurn, generateEvaluation, processTurnStream } from './engine/llm';
 import { buildOpeningMessage } from './engine/promptBuilder';
+import { updateSessionPhase } from './phaseUtils';
 import {
   getLatestStrategy,
   saveStrategy,
@@ -93,29 +94,6 @@ async function requireSessionOwnership(
   }
 
   return session;
-}
-
-// Time-aware phase transitions based on configured session length.
-function updateSessionPhase(session: BackendSessionState): void {
-  const PHASE_TURNS: Record<string, [number, number]> = {
-    '5': [1, 3],
-    '10': [2, 5],
-    '15': [2, 5],
-    '20': [2, 7],
-    '30': [3, 9],
-    '45': [3, 9],
-    '60': [3, 12],
-  };
-  const timeLimit = String(session.config.timeLimit || '30');
-  const [introEnd, deepDiveEnd] = PHASE_TURNS[timeLimit] ?? [2, 7];
-
-  if (session.turnCount <= introEnd) {
-    session.interviewPhase = 'intro';
-  } else if (session.turnCount <= deepDiveEnd) {
-    session.interviewPhase = 'deep_dive';
-  } else {
-    session.interviewPhase = 'closing';
-  }
 }
 
 const app: express.Application = express();

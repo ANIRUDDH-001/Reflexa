@@ -183,11 +183,20 @@ describe('assemblePrompt – strategy overrides', () => {
 // Session metadata
 // ---------------------------------------------------------------------------
 describe('assemblePrompt – session metadata', () => {
-  it('includes the interview phase (uppercased) and turn count', () => {
-    const prompt = assemblePrompt(makeState({ interviewPhase: 'deep_dive', turnCount: 12 }));
+  it('includes exploration phase guidance in prompt', () => {
+    const prompt = assemblePrompt(makeState({ interviewPhase: 'exploration', turnCount: 12 }));
 
-    expect(prompt).toContain('DEEP_DIVE');
+    expect(prompt).toContain('EXPLORATION');
+    expect(prompt).toContain('breadth');
     expect(prompt).toContain('Turn Count: 12');
+  });
+
+  it('includes deep_dive phase guidance in prompt', () => {
+    const prompt = assemblePrompt(makeState({ interviewPhase: 'deep_dive', turnCount: 13 }));
+
+    expect(prompt).toContain('DEEP DIVE');
+    expect(prompt).toContain('depth');
+    expect(prompt).toContain('Turn Count: 13');
   });
 
   it('includes the strategy version', () => {
