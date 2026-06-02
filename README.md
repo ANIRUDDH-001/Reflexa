@@ -17,118 +17,94 @@ Reflexa is an AI-powered interview preparation platform that continuously learns
 
 ## Architecture
 
-```mermaid
-graph LR
-    subgraph Client
-        FE["Frontend<br/>(Vite + TypeScript)"]
-    end
+Reflexa is a monorepo with three packages:
 
-    subgraph Server
-        BE["Backend<br/>(Express + TypeScript)"]
-        DB[(SQLite)]
-    end
+| Package             | Role                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/backend`  | Express + TypeScript API server. Hosts the Gemini-powered interview engine, Phoenix observability instrumentation, MCP client, and Supabase persistence layer. |
+| `packages/frontend` | Vanilla TypeScript SPA (Vite). Interview UI, analysis dashboard, session history.                                                                              |
+| `packages/shared`   | Shared Zod schemas and API contracts used by both packages.                                                                                                    |
 
-    subgraph Observability
-        OTEL["OpenTelemetry<br/>Collector"]
-        PHX["Phoenix<br/>(Arize)"]
-    end
+### Data Stores
 
-    subgraph AI
-        GEMINI["Gemini LLM"]
-        MCP["Phoenix MCP"]
-    end
+| Store                     | Purpose                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| **Supabase (PostgreSQL)** | Session state, evaluation results, strategy history                           |
+| **Arize Phoenix Cloud**   | OpenTelemetry traces, LLM evaluation spans, MCP-accessible observability data |
 
-    FE -- REST API --> BE
-    BE -- better-sqlite3 --> DB
-    BE -- Generative AI SDK --> GEMINI
-    BE -- MCP Client --> MCP
-    BE -- OTLP/HTTP --> OTEL
-    OTEL --> PHX
-```
+### External Services
 
-Reflexa is organized as a **pnpm monorepo** with three workspace packages:
-
-| Package             | Path                | Purpose                                                                                                          |
-| ------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `@reflexa/shared`   | `packages/shared`   | Zod schemas, TypeScript types, and API contracts — the single source of truth for data shapes across the stack   |
-| `@reflexa/backend`  | `packages/backend`  | Express server with interview engine, introspection agent, SQLite persistence, and OpenTelemetry instrumentation |
-| `@reflexa/frontend` | `packages/frontend` | Vite-powered SPA with session management, history views, comparative analytics, and live interview UI            |
+| Service             | Used for                                                    |
+| ------------------- | ----------------------------------------------------------- |
+| Google Gemini API   | Interview AI turns, evaluation scoring, introspection agent |
+| Arize Phoenix Cloud | Trace ingestion, MCP server for self-reflection             |
 
 ## Tech Stack
 
-| Technology                  | Role                                                                      |
-| --------------------------- | ------------------------------------------------------------------------- |
-| **TypeScript**              | End-to-end type safety across all packages                                |
-| **Express.js**              | Backend HTTP server and REST API                                          |
-| **Vite**                    | Frontend build tool and dev server                                        |
-| **Gemini API**              | LLM powering interview question generation, evaluation, and introspection |
-| **SQLite (better-sqlite3)** | Embedded database for sessions, rubrics, and strategy rules               |
-| **OpenTelemetry**           | Distributed tracing and telemetry collection                              |
-| **Phoenix (Arize)**         | LLM observability, trace visualization, and MCP integration               |
-| **Zod**                     | Runtime schema validation and type inference                              |
-| **pnpm workspaces**         | Monorepo dependency management and task orchestration                     |
-
-## Environment Variables
-
-| Variable                      | Required | Description                           |
-| ----------------------------- | -------- | ------------------------------------- |
-| `GOOGLE_API_KEY`              | Yes      | Gemini API key for LLM calls          |
-| `PORT`                        | No       | Backend server port (default: `8000`) |
-| `LOG_LEVEL`                   | No       | Pino log level (default: `info`)      |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | No       | OpenTelemetry OTLP collector endpoint |
+- **Runtime:** Node.js 22, TypeScript
+- **API server:** Express 5, Zod validation, Pino logging
+- **AI:** Google Gemini 2.5 Pro (`@google/genai`), OpenInference instrumentation
+- **Observability:** Arize Phoenix Cloud (OpenTelemetry traces + MCP server)
+- **Database:** Supabase PostgreSQL (`@supabase/supabase-js`)
+- **Frontend:** Vanilla TypeScript, Vite, Tailwind CSS
+- **Testing:** Vitest, Supertest
+- **Package manager:** pnpm workspaces
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
-- **pnpm** ≥ 8 — install via `npm install -g pnpm`
-- A **Google AI / Gemini API key** — [get one here](https://aistudio.google.com/apikey)
+- Node.js 22+
+- pnpm 9+
+- A [Supabase](https://supabase.com) project (free tier works)
+- An [Arize Phoenix Cloud](https://app.phoenix.arize.com) account (free tier works)
+- A [Google AI Studio](https://aistudio.google.com) API key
 
-### Setup
+### 1. Clone and install
 
-1. **Clone the repo**
+```bash
+git clone https://github.com/your-org/reflexa
+cd reflexa
+pnpm install
+```
 
-   ```bash
-   git clone https://github.com/your-org/reflexa.git
-   cd reflexa
-   ```
+### 2. Set up Supabase
 
-2. **Install dependencies**
+Run the schema migration against your Supabase project:
 
-   ```bash
-   pnpm install
-   ```
+```bash
+# Apply the schema (see supabase/schema.sql)
+psql "$SUPABASE_URL" -f supabase/schema.sql
+# OR use the Supabase dashboard SQL editor to paste and run schema.sql
+```
 
-3. **Configure environment**
+### 3. Configure environment variables
 
-   ```bash
-   cp packages/backend/.env.example packages/backend/.env
-   ```
+```bash
+cp .env.example packages/backend/.env
+# Edit packages/backend/.env and fill in all required values
+```
 
-   Open `packages/backend/.env` and fill in your `GOOGLE_API_KEY`.
+See `.env.example` for descriptions of each variable.
 
-4. **Build the shared package**
+### 4. Run in development
 
-   ```bash
-   pnpm --filter @reflexa/shared build
-   ```
+```bash
+# Terminal 1 — backend
+cd packages/backend && pnpm dev
 
-5. **Seed demo data**
+# Terminal 2 — frontend
+cd packages/frontend && pnpm dev
+```
 
-   ```bash
-   npx ts-node packages/backend/src/seed.ts
-   ```
+Frontend: http://localhost:5173  
+Backend: http://localhost:8000
 
-6. **Start development servers**
+### 5. Run tests
 
-   ```bash
-   pnpm run dev
-   ```
-
-7. **Open the app**
-
-   Navigate to [http://localhost:5173](http://localhost:5173) in your browser.
+```bash
+pnpm test
+```
 
 ## Demo Walkthrough
 

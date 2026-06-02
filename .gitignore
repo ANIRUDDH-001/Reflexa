@@ -6,12 +6,10 @@ packages/*/node_modules
 .vscode/
 .DS_Store
 
-# Environment files — never commit real values
+# Environment variables — never commit
 .env
-.env.local
-.env.*.local
-packages/**/.env
-packages/**/.env.local
+*.env
+!.env.example
 
 # SQLite artifacts (legacy — no longer used)
 *.db
