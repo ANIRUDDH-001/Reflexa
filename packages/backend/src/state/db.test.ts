@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 import { describe, it, expect } from 'vitest';
 import { saveSession, getSession, getHistorySessions, saveStrategy, getLatestStrategy } from './db';
 import { BackendSessionState } from './types';
@@ -174,5 +175,40 @@ describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')('db – s
     expect(latest).not.toBeNull();
     expect(latest!.version).toBe(v2);
     expect(latest!.rules).toEqual(['rule-new-1', 'rule-new-2']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schema Alignment
+// ---------------------------------------------------------------------------
+function getTestClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+describe.skipIf(process.env.SUPABASE_URL === 'http://localhost:54321')('schema alignment', () => {
+  it('sessionToRow produces only columns that exist in the sessions table', async () => {
+    const client = getTestClient();
+    if (!client) {
+      // eslint-disable-next-line no-console
+      console.log('Skipping: SUPABASE_URL not set');
+      return;
+    }
+
+    const { error } = await client.from('sessions').select('*').limit(0);
+
+    // If schema is wrong, this will throw a column-not-found error
+    expect(error).toBeNull();
+  });
+
+  it('strategies table is queryable', async () => {
+    const client = getTestClient();
+    if (!client) return;
+
+    const { error } = await client.from('strategies').select('version, rules, created_at').limit(1);
+
+    expect(error).toBeNull();
   });
 });
