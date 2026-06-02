@@ -1,4 +1,3 @@
-import { resolve } from 'path';
 import { Type, Schema, FunctionDeclaration } from '@google/genai';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -15,12 +14,9 @@ export async function initMcpClient(): Promise<Client> {
   }
   logger.info('Initializing Phoenix MCP Client...');
 
-  const mcpBinaryName = process.platform === 'win32' ? 'phoenix-mcp.cmd' : 'phoenix-mcp';
-  const mcpBinaryPath = resolve(__dirname, '../../node_modules/.bin', mcpBinaryName);
-
   transport = new StdioClientTransport({
-    command: mcpBinaryPath,
-    args: [],
+    command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    args: ['--yes', '@arizeai/phoenix-mcp'],
     env: {
       ...process.env,
       PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',

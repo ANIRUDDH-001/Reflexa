@@ -2,8 +2,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const transport = new StdioClientTransport({
-  command: 'node',
-  args: ['packages/backend/node_modules/@arizeai/phoenix-mcp/dist/index.js'],
+  command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
+  args: ['--yes', '@arizeai/phoenix-mcp'],
 });
 
 const client = new Client({
