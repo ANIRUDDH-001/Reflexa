@@ -42,9 +42,23 @@ if (process.env.SKIP_ENV_VALIDATION !== 'true') {
 }
 
 // RECOMMENDED variables: server starts but features degrade without these.
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_ORIGIN) {
+  // Hard crash in production — a silent CORS default is worse than a clear startup failure
+  // eslint-disable-next-line no-console
+  console.error(
+    '[Reflexa] FRONTEND_ORIGIN is required in production. ' +
+      'Set it to your frontend URL (e.g. https://reflexa.vercel.app). ' +
+      'Refusing to start to prevent silent CORS failures.',
+  );
+  process.exit(1);
+}
+
 if (!process.env.FRONTEND_ORIGIN) {
   // eslint-disable-next-line no-console
-  console.warn('[Reflexa] FRONTEND_ORIGIN not set — CORS will use default http://localhost:5173');
+  console.warn(
+    '[Reflexa] FRONTEND_ORIGIN not set — defaulting to http://localhost:5173. ' +
+      'This will block all requests from a production frontend.',
+  );
 }
 if (!process.env.PHOENIX_PROJECT_NAME) {
   // eslint-disable-next-line no-console
@@ -137,10 +151,26 @@ const turnLimiter = rateLimit({
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-User-Id'],
-    credentials: false,
+    origin: (requestOrigin, callback) => {
+      // Parse FRONTEND_ORIGIN as a comma-separated list for staging + production
+      const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      // Allow requests with no origin (curl, server-to-server, Postman)
+      if (!requestOrigin) return callback(null, true);
+
+      if (allowedOrigins.includes(requestOrigin)) {
+        return callback(null, true);
+      }
+
+      logger.warn({ requestOrigin, allowedOrigins }, 'CORS: blocked request from unknown origin');
+      return callback(new Error(`CORS: origin ${requestOrigin} is not allowed`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
   }),
 );
 app.use(express.json());

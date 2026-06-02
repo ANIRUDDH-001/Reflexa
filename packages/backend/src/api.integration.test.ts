@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, beforeEach, vi } from 'vitest';
 import { app } from './index';
 
 vi.mock('./state/db', () => {
@@ -222,6 +222,45 @@ describe('API Integration Tests', () => {
         .set('X-User-Id', 'test-user');
       expect(res.status).toBe(200);
       expect(res.body.message).toContain('already completed');
+    });
+  });
+
+  describe('CORS configuration', () => {
+    beforeEach(() => {
+      process.env.FRONTEND_ORIGIN = 'https://reflexa.vercel.app';
+    });
+
+    it('allows requests from FRONTEND_ORIGIN', async () => {
+      const res = await request(app)
+        .options('/session')
+        .set('Origin', 'https://reflexa.vercel.app')
+        .set('Access-Control-Request-Method', 'POST');
+
+      expect(res.headers['access-control-allow-origin']).toBe('https://reflexa.vercel.app');
+    });
+
+    it('blocks requests from unknown origin', async () => {
+      const res = await request(app).get('/health').set('Origin', 'https://evil.example.com');
+
+      // Should not reflect the evil origin back
+      expect(res.headers['access-control-allow-origin']).not.toBe('https://evil.example.com');
+    });
+
+    it('allows multiple origins when comma-separated', async () => {
+      process.env.FRONTEND_ORIGIN = 'https://reflexa.vercel.app,https://staging.reflexa.app';
+
+      const res = await request(app)
+        .options('/session')
+        .set('Origin', 'https://staging.reflexa.app')
+        .set('Access-Control-Request-Method', 'POST');
+
+      expect(res.headers['access-control-allow-origin']).toBe('https://staging.reflexa.app');
+    });
+
+    it('allows requests with no origin (curl, server-to-server)', async () => {
+      const res = await request(app).get('/health');
+
+      expect(res.status).not.toBe(403);
     });
   });
 });
