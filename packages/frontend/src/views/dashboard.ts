@@ -1,5 +1,6 @@
 import { api } from '../api';
 import { refreshIcons } from '../lucide';
+import { escapeHtml } from '../utils/dom';
 
 export async function renderDashboard(container: HTMLElement): Promise<void> {
   container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading dashboard…</div>';
@@ -68,10 +69,10 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const listHtml = sessions
       .map((s: any) => {
-        const date = new Date(s.startedAt).toLocaleDateString();
-        const role = s.config?.role || 'Engineer';
+        const date = escapeHtml(new Date(s.startedAt).toLocaleDateString());
+        const role = escapeHtml(s.config?.role || 'Engineer');
         const scoreVal = s.evaluation?.rubric?.overall ?? s.evaluation?.score;
-        const score = scoreVal !== undefined ? scoreVal + '%' : 'Pending';
+        const score = scoreVal !== undefined ? escapeHtml(scoreVal + '%') : 'Pending';
 
         return `
         <div class="panel p-4 mb-4 flex items-center justify-between hover:border-accent transition-colors">

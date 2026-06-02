@@ -2,6 +2,7 @@ import { api } from '../api';
 import { createButton } from '../components/button';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
+import { escapeHtml } from '../utils/dom';
 
 // --- State ---
 let currentStep = 1;
@@ -379,7 +380,7 @@ function renderStep4(): HTMLElement {
         
         <dt class="text-gray-500">Competencies</dt>
         <dd class="font-medium text-right">${
-          config.focusAreas.length ? config.focusAreas.join(', ') : 'None'
+          config.focusAreas.length ? escapeHtml(config.focusAreas.join(', ')) : 'None'
         }</dd>
       </dl>
     </div>

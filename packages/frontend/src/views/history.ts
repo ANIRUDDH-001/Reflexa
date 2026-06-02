@@ -1,5 +1,6 @@
 import { api } from '../api';
 import { refreshIcons } from '../lucide';
+import { escapeHtml } from '../utils/dom';
 
 export async function renderHistory(container: HTMLElement): Promise<void> {
   container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading history...</div>';
@@ -29,10 +30,10 @@ export async function renderHistory(container: HTMLElement): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const listHtml = sessions
       .map((s: any) => {
-        const date = new Date(s.startedAt).toLocaleString();
-        const role = s.config?.role || 'Engineer';
+        const date = escapeHtml(new Date(s.startedAt).toLocaleString());
+        const role = escapeHtml(s.config?.role || 'Engineer');
         const scoreVal = s.evaluation?.rubric?.overall || s.evaluation?.score;
-        const score = scoreVal !== undefined ? scoreVal + '%' : 'Pending';
+        const score = scoreVal !== undefined ? escapeHtml(scoreVal + '%') : 'Pending';
         const statusBadge =
           s.status === 'completed'
             ? '<span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded">Completed</span>'
