@@ -1,4 +1,4 @@
-import { api, PHOENIX_TRACE_BASE } from '../api';
+import { api } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
@@ -36,12 +36,14 @@ export async function renderAnalysis(
   let session: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let comparison: any = null;
+  let phoenixTraceUrl: string | null = null;
   try {
     const [sessionRes, compRes] = await Promise.all([
       api.getSession(currentSessionId),
       api.getComparison(currentSessionId).catch(() => ({ comparison: null })),
     ]);
     session = sessionRes.session;
+    phoenixTraceUrl = sessionRes.phoenixTraceUrl || null;
     comparison = compRes.comparison;
   } catch (e) {
     // Safe: static text
@@ -81,8 +83,8 @@ export async function renderAnalysis(
       </div>
       <div class="flex gap-2">
         ${
-          session.evalTraceId && /^[0-9a-f]{32}$/.test(session.evalTraceId)
-            ? `<a href="${PHOENIX_TRACE_BASE}/${session.evalTraceId}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
+          phoenixTraceUrl
+            ? `<a href="${phoenixTraceUrl}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
                 <i data-lucide="external-link"></i>
                 <span>View Full Trace</span>
               </a>`

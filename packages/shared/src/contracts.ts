@@ -22,7 +22,9 @@ export const CreateSessionRequest = z
   .strict();
 export const CreateSessionResponse = z.object({ session: InterviewSession }).strict();
 
-export const GetSessionResponse = z.object({ session: InterviewSession }).strict();
+export const GetSessionResponse = z
+  .object({ session: InterviewSession, phoenixTraceUrl: z.string().nullable().optional() })
+  .strict();
 
 export const TurnRequest = z
   .object({

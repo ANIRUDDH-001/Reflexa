@@ -45,6 +45,13 @@ if (!process.env.FRONTEND_ORIGIN) {
   // eslint-disable-next-line no-console
   console.warn('[Reflexa] FRONTEND_ORIGIN not set — CORS will use default http://localhost:5173');
 }
+if (!process.env.PHOENIX_PROJECT_NAME) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[Reflexa] PHOENIX_PROJECT_NAME not set — defaulting to "default". ' +
+      'Set this to your Phoenix project name for correct trace links.',
+  );
+}
 // ── End env validation ─────────────────────────────────────────
 
 const generateId = () => randomUUID();
@@ -162,17 +169,23 @@ app.use(express.json());
 
 // Expose dynamic configuration to the frontend
 app.get('/config', (req: Request, res: Response) => {
-  let traceBase = 'https://app.phoenix.arize.com/traces';
+  const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
+  let traceBase = 'https://app.phoenix.arize.com';
+
   const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
-  // If using a Space (e.g. /s/project-name), adjust the trace base link
   if (collector.includes('/s/')) {
-    const spacePath = collector.substring(collector.indexOf('/s/'));
-    const cleanSpacePath = spacePath.replace(/\/v1\/traces\/?$/, '').replace(/\/+$/, '');
-    if (cleanSpacePath) {
-      traceBase = `https://app.phoenix.arize.com${cleanSpacePath}/traces`;
+    // Extract /s/{space-slug} from the collector endpoint
+    const spaceMatch = collector.match(/\/s\/([^/]+)/);
+    if (spaceMatch) {
+      const spaceSlug = spaceMatch[1];
+      // Phoenix Cloud trace viewer URL format (verified 2025-2026):
+      // https://app.phoenix.arize.com/s/{space}/projects/{project}/traces
+      traceBase = `https://app.phoenix.arize.com/s/${spaceSlug}/projects/${PHOENIX_PROJECT}/traces`;
     }
-  } else if (process.env.PHOENIX_PROJECT_NAME) {
-    traceBase = `https://app.phoenix.arize.com/projects/${process.env.PHOENIX_PROJECT_NAME}/traces`;
+  } else if (collector.startsWith('http://localhost') || collector.startsWith('http://0.0.0.0')) {
+    // Self-hosted Phoenix: different URL structure
+    const baseUrl = collector.replace(/\/v1\/traces\/?$/, '');
+    traceBase = `${baseUrl}/projects/${PHOENIX_PROJECT}/traces`;
   }
 
   res.json({
@@ -244,7 +257,24 @@ app.get('/session/:id', async (req: Request, res: Response) => {
   const session = await requireSessionOwnership(req, res, sessionId);
   if (!session) return;
 
-  const responsePayload = { session };
+  const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
+  let traceBase = 'https://app.phoenix.arize.com';
+  const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
+  if (collector.includes('/s/')) {
+    const spaceMatch = collector.match(/\/s\/([^/]+)/);
+    if (spaceMatch) {
+      const spaceSlug = spaceMatch[1];
+      traceBase = `https://app.phoenix.arize.com/s/${spaceSlug}/projects/${PHOENIX_PROJECT}/traces`;
+    }
+  } else if (collector.startsWith('http://localhost') || collector.startsWith('http://0.0.0.0')) {
+    const baseUrl = collector.replace(/\/v1\/traces\/?$/, '');
+    traceBase = `${baseUrl}/projects/${PHOENIX_PROJECT}/traces`;
+  }
+
+  const phoenixTraceUrl =
+    session.evalTraceId && collector ? `${traceBase}/${session.evalTraceId}` : null;
+
+  const responsePayload = { session, phoenixTraceUrl };
   const parsedRes = APIContracts.GetSessionResponse.safeParse(responsePayload);
   if (!parsedRes.success) {
     return res.status(500).json({ error: 'contract mismatch', details: parsedRes.error.format() });
