@@ -158,3 +158,68 @@ describe('POST /session/:id/turn/stream', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('streaming endpoint — turnCount order', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('LLM receives incremented turnCount', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (getSession as any).mockResolvedValue(mockSession('test-user', 'in_progress'));
+
+    let capturedTurnCount: number | undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (processTurnStream as any).mockImplementation(async function* (session: BackendSessionState) {
+      capturedTurnCount = session.turnCount;
+      yield { type: 'done', fullText: '{"agentMessage":"mock response"}', traceId: '123' };
+    });
+
+    await request(app)
+      .post('/session/test-session-stream/turn/stream')
+      .set('X-User-Id', 'test-user')
+      .send({ text: 'test message' });
+
+    // LLM should see turnCount = 1 (0 + 1)
+    expect(capturedTurnCount).toBe(1);
+  });
+
+  it('streaming and non-streaming produce same turnCount after one turn', async () => {
+    const { processTurn } = await import('./engine/llm');
+    const { saveSession } = await import('./state/db');
+
+    // Streaming
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (getSession as any).mockResolvedValue(mockSession('test-user', 'in_progress'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (processTurnStream as any).mockImplementation(async function* () {
+      yield { type: 'done', fullText: '{"agentMessage":"mock response"}', traceId: '123' };
+    });
+
+    await request(app)
+      .post('/session/test-session-stream/turn/stream')
+      .set('X-User-Id', 'test-user')
+      .send({ text: 'hello' });
+
+    // The last call to saveSession should have turnCount = 1
+    const streamSessionState = vi.mocked(saveSession).mock.calls[0][0];
+    expect(streamSessionState.turnCount).toBe(1);
+
+    vi.clearAllMocks();
+
+    // Non-streaming
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (getSession as any).mockResolvedValue(mockSession('test-user', 'in_progress'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (processTurn as any).mockResolvedValue({ agentMessage: 'mock response', traceId: '123' });
+
+    await request(app)
+      .post('/session/test-session-stream/turn')
+      .set('X-User-Id', 'test-user')
+      .send({ text: 'hello' });
+
+    const syncSessionState = vi.mocked(saveSession).mock.calls[0][0];
+    expect(syncSessionState.turnCount).toBe(1);
+  });
+});
