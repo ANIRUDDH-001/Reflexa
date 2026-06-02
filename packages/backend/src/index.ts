@@ -10,6 +10,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { runIntrospection } from './engine/introspection';
 import { processTurn, generateEvaluation, processTurnStream } from './engine/llm';
+import { buildOpeningMessage } from './engine/promptBuilder';
 import {
   getLatestStrategy,
   saveStrategy,
@@ -170,6 +171,8 @@ app.get('/config', (req: Request, res: Response) => {
     if (cleanSpacePath) {
       traceBase = `https://app.phoenix.arize.com${cleanSpacePath}/traces`;
     }
+  } else if (process.env.PHOENIX_PROJECT_NAME) {
+    traceBase = `https://app.phoenix.arize.com/projects/${process.env.PHOENIX_PROJECT_NAME}/traces`;
   }
 
   res.json({
@@ -218,9 +221,7 @@ app.post('/session', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
         type: 'ai_message',
         payload: {
-          text: `Hello! I'll be acting as your engineering manager for this ${
-            config.style || 'technical'
-          } interview. Today we're going to design a distributed system. Are you ready to begin?`,
+          text: buildOpeningMessage(config),
         },
       },
     ],
@@ -370,6 +371,9 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
   }, 5000);
 
   try {
+    session.turnCount += 1;
+    updateSessionPhase(session);
+
     for await (const chunk of processTurnStream(
       session,
       parsed.data.text,
@@ -408,8 +412,6 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
           traceId: chunk.traceId,
         });
 
-        session.turnCount += 1;
-        updateSessionPhase(session);
         await saveSession(session);
 
         res.write(

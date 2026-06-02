@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BackendSessionState } from '../state/types';
-import { assemblePrompt, sanitiseInput } from './promptBuilder';
+import { assemblePrompt, sanitiseInput, buildOpeningMessage } from './promptBuilder';
 
 /**
  * Helper: build a minimal BackendSessionState with optional overrides.
@@ -206,5 +206,44 @@ describe('assemblePrompt – session metadata', () => {
     const prompt = assemblePrompt(makeState({ lastAgentAction: 'probed' }));
 
     expect(prompt).toContain('Last Action: probed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildOpeningMessage
+// ---------------------------------------------------------------------------
+describe('buildOpeningMessage', () => {
+  it('behavioral style does not mention distributed systems', () => {
+    const msg = buildOpeningMessage({ style: 'behavioral', role: 'backend', difficulty: 'senior' });
+    expect(msg.toLowerCase()).not.toContain('distributed system');
+    expect(msg.toLowerCase()).toContain('behavioral');
+  });
+
+  it('coding style mentions coding not system design', () => {
+    const msg = buildOpeningMessage({ style: 'coding', role: 'frontend', difficulty: 'mid' });
+    expect(msg.toLowerCase()).not.toContain('distributed system');
+    expect(msg.toLowerCase()).toContain('coding');
+  });
+
+  it('system-design style mentions distributed system', () => {
+    const msg = buildOpeningMessage({
+      style: 'system-design',
+      role: 'backend',
+      difficulty: 'senior',
+    });
+    expect(msg.toLowerCase()).toContain('distributed system');
+  });
+
+  it('unknown style falls back gracefully', () => {
+    const msg = buildOpeningMessage({ style: null, role: null, difficulty: null });
+    expect(msg.length).toBeGreaterThan(20);
+    expect(msg.toLowerCase()).not.toContain('undefined');
+    expect(msg.toLowerCase()).not.toContain('null');
+  });
+
+  it('role and difficulty appear in the output', () => {
+    const msg = buildOpeningMessage({ style: 'coding', role: 'ai', difficulty: 'staff' });
+    expect(msg).toContain('ai');
+    expect(msg).toContain('staff');
   });
 });

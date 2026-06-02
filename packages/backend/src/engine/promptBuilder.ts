@@ -68,4 +68,29 @@ Review the conversation history and decide the best next action:
 `;
 }
 
+export function buildOpeningMessage(config: {
+  style: string | null;
+  role: string | null;
+  difficulty: string | null;
+}): string {
+  const role = config.role || 'engineer';
+  const difficulty = config.difficulty || 'mid';
+
+  const styleOpeners: Record<string, string> = {
+    'system-design': `Today we'll be designing a distributed system together. I'll ask you to walk me through architecture decisions, trade-offs, and failure modes. Are you ready to begin?`,
+    coding: `Today we'll be working through a live coding problem. I'll ask you to think out loud as you work — approach, edge cases, and complexity matter as much as the solution. Ready?`,
+    troubleshooting: `Today I'll present you with a production incident scenario. I want to understand how you diagnose, triage, and resolve real-world failures. Ready to dive in?`,
+    behavioral: `Today I'd like to explore a few scenarios from your experience. I'll be asking you to walk me through specific situations — what you did, why, and what you learned. Ready?`,
+    architecture: `Today we'll be doing a deep-dive architecture review. I'll want to understand how you'd approach evaluating and improving an existing system at scale. Ready to begin?`,
+  };
+
+  const opener =
+    styleOpeners[config.style || ''] ||
+    `Today we'll conduct a technical interview covering your engineering background and problem-solving approach. Ready to begin?`;
+
+  return `Hello! I'll be your interviewer for this ${
+    config.style || 'technical'
+  } interview targeting a ${difficulty} ${role} role. ${opener}`;
+}
+
 export { sanitiseInput };
