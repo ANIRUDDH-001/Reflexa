@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { BackendSessionState } from '../state/types';
-import { assemblePrompt, sanitiseInput, buildOpeningMessage } from './promptBuilder';
+import {
+  assemblePrompt,
+  sanitiseInput,
+  buildOpeningMessage,
+  getStyleInstructions,
+} from './promptBuilder';
 
 /**
  * Helper: build a minimal BackendSessionState with optional overrides.
@@ -254,5 +259,79 @@ describe('buildOpeningMessage', () => {
     const msg = buildOpeningMessage({ style: 'coding', role: 'ai', difficulty: 'staff' });
     expect(msg).toContain('ai');
     expect(msg).toContain('staff');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getStyleInstructions
+// ---------------------------------------------------------------------------
+describe('getStyleInstructions', () => {
+  const styles = ['system-design', 'coding', 'troubleshooting', 'behavioral', 'architecture'];
+
+  styles.forEach((style) => {
+    it(`${style} prompt does not mention other styles' keywords`, () => {
+      const instructions = getStyleInstructions(style, 'backend', 'senior');
+      expect(instructions.length).toBeGreaterThan(100);
+
+      if (style === 'behavioral') {
+        expect(instructions).toContain('STAR');
+        expect(instructions.toLowerCase()).not.toContain('design a system');
+      }
+      if (style === 'coding') {
+        expect(instructions.toLowerCase()).toContain('complexity');
+        expect(instructions.toLowerCase()).not.toContain('star framework');
+      }
+      if (style === 'system-design') {
+        expect(instructions.toLowerCase()).toContain('scale');
+        expect(instructions.toLowerCase()).not.toContain('write actual code');
+      }
+    });
+  });
+
+  it('includes difficulty level in instructions', () => {
+    const senior = getStyleInstructions('behavioral', 'backend', 'senior');
+    const junior = getStyleInstructions('behavioral', 'backend', 'junior');
+    expect(senior).not.toBe(junior); // different guidance for different levels
+  });
+
+  it('handles null style gracefully', () => {
+    const instructions = getStyleInstructions(null, null, null);
+    expect(instructions.length).toBeGreaterThan(20);
+    expect(instructions).not.toContain('undefined');
+    expect(instructions).not.toContain('null');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assemblePrompt with style instructions
+// ---------------------------------------------------------------------------
+describe('assemblePrompt with style instructions', () => {
+  it('behavioral prompt contains STAR guidance', () => {
+    const baseState = makeState();
+    const prompt = assemblePrompt({
+      ...baseState,
+      config: { ...baseState.config, style: 'behavioral' },
+    });
+    expect(prompt).toContain('STAR');
+  });
+
+  it('system-design prompt contains scale/failure guidance', () => {
+    const baseState = makeState();
+    const prompt = assemblePrompt({
+      ...baseState,
+      config: { ...baseState.config, style: 'system-design' },
+    });
+    expect(prompt).toContain('scale');
+    expect(prompt).toContain('failure');
+  });
+
+  it('focus areas appear in prompt when provided', () => {
+    const baseState = makeState();
+    const prompt = assemblePrompt({
+      ...baseState,
+      config: { ...baseState.config, focusAreas: ['distributed consensus', 'caching'] },
+    });
+    expect(prompt).toContain('distributed consensus');
+    expect(prompt).toContain('caching');
   });
 });
