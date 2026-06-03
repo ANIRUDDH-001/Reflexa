@@ -27,6 +27,16 @@ function db(): SupabaseClient {
 // Map Supabase snake_case row → BackendSessionState (camelCase)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function rowToSession(row: any): BackendSessionState {
+  if (row.evaluation?.rubric) {
+    if (
+      row.evaluation.rubric.opportunityCoverage === undefined &&
+      row.evaluation.rubric.missedOpportunities !== undefined
+    ) {
+      row.evaluation.rubric.opportunityCoverage = row.evaluation.rubric.missedOpportunities;
+      delete row.evaluation.rubric.missedOpportunities;
+    }
+  }
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -153,11 +163,22 @@ export async function getHistorySessions(userId: string): Promise<
     return [];
   }
 
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    status: r.status,
-    startedAt: r.started_at,
-    config: r.config,
-    evaluation: r.evaluation ?? undefined,
-  }));
+  return (data ?? []).map((r) => {
+    if (r.evaluation?.rubric) {
+      if (
+        r.evaluation.rubric.opportunityCoverage === undefined &&
+        r.evaluation.rubric.missedOpportunities !== undefined
+      ) {
+        r.evaluation.rubric.opportunityCoverage = r.evaluation.rubric.missedOpportunities;
+        delete r.evaluation.rubric.missedOpportunities;
+      }
+    }
+    return {
+      id: r.id,
+      status: r.status,
+      startedAt: r.started_at,
+      config: r.config,
+      evaluation: r.evaluation ?? undefined,
+    };
+  });
 }

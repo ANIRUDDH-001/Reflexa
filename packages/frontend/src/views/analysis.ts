@@ -166,9 +166,9 @@ export async function renderAnalysis(
       { label: 'Adaptability', score: rubric.adaptability, key: 'adaptability' },
       { label: 'Pacing', score: rubric.pacing, key: 'pacing' },
       {
-        label: 'Opportunities Captured',
-        score: rubric.missedOpportunities,
-        key: 'missedOpportunities',
+        label: 'Opportunity Coverage',
+        score: rubric.opportunityCoverage,
+        key: 'opportunityCoverage',
       },
     ].filter((s) => s.score !== undefined);
 

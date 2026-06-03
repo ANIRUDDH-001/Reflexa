@@ -10,7 +10,7 @@ describe('schemas', () => {
         clarity: 50,
         adaptability: 75,
         pacing: 80,
-        missedOpportunities: 10,
+        opportunityCoverage: 10,
         overall: 90,
       };
       const result = Schemas.EvaluationRubric.safeParse(valid);
@@ -27,7 +27,7 @@ describe('schemas', () => {
         clarity: 50,
         adaptability: 50,
         pacing: 50,
-        missedOpportunities: 50,
+        opportunityCoverage: 50,
         overall: 50,
       };
       expect(Schemas.EvaluationRubric.safeParse(tooLow).success).toBe(false);
@@ -38,7 +38,7 @@ describe('schemas', () => {
         clarity: 50,
         adaptability: 50,
         pacing: 50,
-        missedOpportunities: 50,
+        opportunityCoverage: 50,
         overall: 50,
       };
       expect(Schemas.EvaluationRubric.safeParse(tooHigh).success).toBe(false);
@@ -79,7 +79,7 @@ describe('schemas', () => {
           clarity: 80,
           adaptability: 95,
           pacing: 90,
-          missedOpportunities: 10,
+          opportunityCoverage: 10,
           overall: 88,
         },
         summary: 'Good session overall',

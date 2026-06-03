@@ -45,7 +45,7 @@ export const EvaluationRubric = z.object({
   clarity: z.number().min(0).max(100),
   adaptability: z.number().min(0).max(100),
   pacing: z.number().min(0).max(100),
-  missedOpportunities: z.number().min(0).max(100),
+  opportunityCoverage: z.number().min(0).max(100),
   overall: z.number().min(0).max(100),
 });
 

@@ -329,7 +329,7 @@ export interface EvaluationResultData {
     clarity: number;
     adaptability: number;
     pacing: number;
-    missedOpportunities: number;
+    opportunityCoverage: number;
     overall: number;
   };
   summary: string;
@@ -343,7 +343,7 @@ export interface EvaluationResultData {
   strategyOverrides: string[];
 }
 
-const evalSchema: Schema = {
+export const evalSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     rubric: {
@@ -363,9 +363,12 @@ const evalSchema: Schema = {
           description: 'Score out of 100 for adaptability to candidate responses',
         },
         pacing: { type: Type.INTEGER, description: 'Score out of 100 for interview pacing' },
-        missedOpportunities: {
+        opportunityCoverage: {
           type: Type.INTEGER,
-          description: 'Score out of 100 (100 means no missed opportunities)',
+          description:
+            'Score out of 100. How many significant follow-up opportunities did the interviewer ' +
+            'identify and pursue? 100 = captured all key opportunities; 0 = missed most opportunities. ' +
+            'Higher is better.',
         },
         overall: { type: Type.INTEGER, description: 'Overall score out of 100' },
       },
@@ -375,7 +378,7 @@ const evalSchema: Schema = {
         'clarity',
         'adaptability',
         'pacing',
-        'missedOpportunities',
+        'opportunityCoverage',
         'overall',
       ],
     },
@@ -445,7 +448,7 @@ export async function generateEvaluation(
               clarity: 0,
               adaptability: 0,
               pacing: 0,
-              missedOpportunities: 0,
+              opportunityCoverage: 0,
               overall: 0,
             },
             summary:
@@ -481,7 +484,8 @@ export async function generateEvaluation(
           .join('\n\n');
 
         const systemInstruction =
-          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.";
+          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.\n\n" +
+          'For opportunityCoverage: score 100 if the interviewer captured and pursued all significant follow-up threads. Score 0 if they let many opportunities pass. High score = interviewer was thorough and engaged.';
 
         for (const model of MODELS) {
           try {

@@ -113,7 +113,7 @@ const session1: BackendSessionState = {
     clarity: 55,
     adaptability: 40,
     pacing: 45,
-    missedOpportunities: 30,
+    opportunityCoverage: 30,
   },
   summary:
     'The agent conducted a shallow interview, frequently accepting brief answers and moving on without probing. Multiple opportunities to explore trade-offs and failure modes were missed.',
@@ -254,7 +254,7 @@ const session2: BackendSessionState = {
     clarity: 80,
     adaptability: 72,
     pacing: 70,
-    missedOpportunities: 62,
+    opportunityCoverage: 62,
   },
   summary:
     'Significant improvement from the baseline session. The agent probed deeper on trade-offs and maintained better pacing. Remaining gap: failure-mode exploration was surface-level.',

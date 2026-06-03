@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateEvaluation } from './llm';
+import { generateEvaluation, evalSchema } from './llm';
 
 // Mock the Gemini AI client so it never gets called
 vi.mock('@google/genai', () => ({
@@ -39,7 +39,7 @@ describe('generateEvaluation — minimal input guard', () => {
     expect(result.rubric.clarity).toBe(0);
     expect(result.rubric.adaptability).toBe(0);
     expect(result.rubric.pacing).toBe(0);
-    expect(result.rubric.missedOpportunities).toBe(0);
+    expect(result.rubric.opportunityCoverage).toBe(0);
     expect(result.summary).toContain('abandoned');
     expect(result.strategyOverrides.length).toBeGreaterThan(0);
     // LLM must NOT have been called
@@ -77,7 +77,7 @@ describe('generateEvaluation — minimal input guard', () => {
           clarity: 80,
           adaptability: 72,
           pacing: 70,
-          missedOpportunities: 62,
+          opportunityCoverage: 62,
         },
         summary: 'Good session',
         weakTurns: [],
@@ -99,5 +99,17 @@ describe('generateEvaluation — minimal input guard', () => {
     await generateEvaluation(trace, 'test-session-two');
 
     expect(mockGenerateContent).toHaveBeenCalledOnce();
+  });
+});
+
+describe('opportunityCoverage field semantics', () => {
+  it('high score means many opportunities captured (not many missed)', () => {
+    // @ts-expect-error accessing schema internal properties safely
+    const rubricProps = evalSchema.properties?.rubric?.properties;
+    expect(rubricProps).toBeDefined();
+
+    const fieldDesc = rubricProps.opportunityCoverage.description;
+    expect(fieldDesc.toLowerCase()).toContain('higher is better');
+    expect(fieldDesc.toLowerCase()).not.toContain('100 means many missed');
   });
 });
