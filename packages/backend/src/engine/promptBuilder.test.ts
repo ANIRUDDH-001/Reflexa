@@ -5,6 +5,8 @@ import {
   sanitiseInput,
   buildOpeningMessage,
   getStyleInstructions,
+  estimateTotalTurns,
+  formatTurnBudget,
 } from './promptBuilder';
 
 /**
@@ -193,7 +195,7 @@ describe('assemblePrompt – session metadata', () => {
 
     expect(prompt).toContain('EXPLORATION');
     expect(prompt).toContain('breadth');
-    expect(prompt).toContain('Turn Count: 12');
+    expect(prompt).toContain('Turn 12');
   });
 
   it('includes deep_dive phase guidance in prompt', () => {
@@ -201,7 +203,7 @@ describe('assemblePrompt – session metadata', () => {
 
     expect(prompt).toContain('DEEP DIVE');
     expect(prompt).toContain('depth');
-    expect(prompt).toContain('Turn Count: 13');
+    expect(prompt).toContain('Turn 13');
   });
 
   it('includes the strategy version', () => {
@@ -333,5 +335,58 @@ describe('assemblePrompt with style instructions', () => {
     });
     expect(prompt).toContain('distributed consensus');
     expect(prompt).toContain('caching');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// turn budget
+// ---------------------------------------------------------------------------
+describe('estimateTotalTurns', () => {
+  it('returns at least 4 turns', () => {
+    expect(estimateTotalTurns('5')).toBeGreaterThanOrEqual(4);
+    expect(estimateTotalTurns(null)).toBeGreaterThanOrEqual(4);
+  });
+
+  it('scales with time limit', () => {
+    expect(estimateTotalTurns('10')).toBeLessThan(estimateTotalTurns('30'));
+  });
+
+  it('20-minute session produces ~8 turns', () => {
+    expect(estimateTotalTurns('20')).toBe(8);
+  });
+});
+
+describe('formatTurnBudget', () => {
+  it('shows turns remaining', () => {
+    const out = formatTurnBudget(3, '20'); // 3 of ~8
+    expect(out).toContain('Turn 3');
+    expect(out).toContain('~8');
+    expect(out).toContain('5 remaining');
+  });
+
+  it('adds closing warning for late turns', () => {
+    const out = formatTurnBudget(8, '20'); // 8 of ~8 = 100%
+    expect(out.toUpperCase()).toContain('CLOSING');
+  });
+
+  it('does not add closing warning for early turns', () => {
+    const out = formatTurnBudget(1, '20');
+    expect(out.toUpperCase()).not.toContain('CLOSING');
+  });
+});
+
+describe('assemblePrompt — turn budget', () => {
+  const baseState = makeState();
+
+  it('includes turn budget in prompt', () => {
+    const prompt = assemblePrompt({ ...baseState, turnCount: 5 });
+    expect(prompt).toContain('Turn 5');
+    expect(prompt).toContain('remaining');
+  });
+
+  it('includes closing instruction near end of session', () => {
+    const total = estimateTotalTurns(baseState.config.timeLimit);
+    const prompt = assemblePrompt({ ...baseState, turnCount: total - 1 });
+    expect(prompt.toUpperCase()).toContain('CLOSING');
   });
 });
