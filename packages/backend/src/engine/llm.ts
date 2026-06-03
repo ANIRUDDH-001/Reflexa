@@ -31,6 +31,39 @@ const responseSchema: Schema = {
       type: Type.STRING,
       description: 'The text response from the agent to the user.',
     },
+    candidateAssessment: {
+      type: Type.OBJECT,
+      description:
+        "Your structured assessment of the candidate's LAST answer. " +
+        'Used for adaptive questioning and self-improvement.',
+      properties: {
+        depthSignal: {
+          type: Type.STRING,
+          enum: ['shallow', 'adequate', 'deep'],
+          description:
+            '"shallow": surface-level, vague, or missing key concepts. ' +
+            '"adequate": correct and covers basics. ' +
+            '"deep": demonstrates strong understanding with unprompted nuance.',
+        },
+        topicCoverage: {
+          type: Type.INTEGER,
+          description: '0-100. What % of the expected answer space did the candidate cover?',
+        },
+        shouldTransition: {
+          type: Type.BOOLEAN,
+          description:
+            'true if this topic is sufficiently covered and you should move to a new area. ' +
+            'false if you should probe deeper on the current topic.',
+        },
+        observedWeakness: {
+          type: Type.STRING,
+          description:
+            'One-sentence description of the primary gap or weakness in the answer, ' +
+            'or empty string if the answer was strong.',
+        },
+      },
+      required: ['depthSignal', 'topicCoverage', 'shouldTransition', 'observedWeakness'],
+    },
     statusMetadata: {
       type: Type.STRING,
       description: "Internal status note (e.g., 'evaluating scalability')",
@@ -41,14 +74,22 @@ const responseSchema: Schema = {
       description: "The chosen next action: 'asked_question', 'probed', 'hinted', or 'summarized'",
     },
   },
-  required: ['agentMessage', 'statusMetadata', 'nextActionIndicator'],
+  required: ['agentMessage', 'candidateAssessment', 'statusMetadata', 'nextActionIndicator'],
 };
+
+export interface CandidateAssessment {
+  depthSignal: 'shallow' | 'adequate' | 'deep';
+  topicCoverage: number; // 0-100
+  shouldTransition: boolean;
+  observedWeakness: string;
+}
 
 export interface ProcessTurnResult {
   agentMessage: string;
   statusMetadata: string;
   scoreHints: number;
   nextActionIndicator: string;
+  candidateAssessment: CandidateAssessment;
   traceId: string;
 }
 

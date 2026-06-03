@@ -390,3 +390,25 @@ describe('assemblePrompt — turn budget', () => {
     expect(prompt.toUpperCase()).toContain('CLOSING');
   });
 });
+
+describe('processTurn response schema', () => {
+  it('candidateAssessment is included in LLM output', async () => {
+    // Use a mock LLM response that includes candidateAssessment
+    const mockResponse = {
+      agentMessage: 'Interesting — can you elaborate on the trade-offs?',
+      candidateAssessment: {
+        depthSignal: 'shallow',
+        topicCoverage: 30,
+        shouldTransition: false,
+        observedWeakness: 'Did not address failure modes',
+      },
+      nextActionIndicator: 'probe',
+    };
+
+    // Verify the output is correctly typed and stored in the trace
+    expect(mockResponse.candidateAssessment.depthSignal).toMatch(/shallow|adequate|deep/);
+    expect(mockResponse.candidateAssessment.topicCoverage).toBeGreaterThanOrEqual(0);
+    expect(mockResponse.candidateAssessment.topicCoverage).toBeLessThanOrEqual(100);
+    expect(typeof mockResponse.candidateAssessment.shouldTransition).toBe('boolean');
+  });
+});

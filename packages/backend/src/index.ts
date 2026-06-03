@@ -9,7 +9,12 @@ import helmet from 'helmet';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { runIntrospection } from './engine/introspection';
-import { processTurn, generateEvaluation, processTurnStream } from './engine/llm';
+import {
+  processTurn,
+  generateEvaluation,
+  processTurnStream,
+  CandidateAssessment,
+} from './engine/llm';
 import { buildOpeningMessage } from './engine/promptBuilder';
 import { updateSessionPhase } from './phaseUtils';
 import {
@@ -340,6 +345,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
           status: llmOutput.statusMetadata,
           scoreHint: llmOutput.scoreHints,
         },
+        assessment: llmOutput.candidateAssessment,
       },
     });
 
@@ -423,12 +429,14 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
         let extractedMessage = chunk.fullText;
         let extractedStatus: string | undefined = undefined;
         let extractedScore: number | undefined = undefined;
+        let extractedAssessment: CandidateAssessment | undefined = undefined;
 
         try {
           const parsedText = JSON.parse(chunk.fullText);
           if (parsedText.agentMessage) extractedMessage = parsedText.agentMessage;
           extractedStatus = parsedText.statusMetadata;
           extractedScore = parsedText.scoreHints;
+          extractedAssessment = parsedText.candidateAssessment;
         } catch {
           const match = chunk.fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
           if (match) extractedMessage = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
@@ -446,6 +454,7 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
               status: extractedStatus,
               scoreHint: extractedScore,
             },
+            assessment: extractedAssessment,
           },
           traceId: chunk.traceId,
         });
