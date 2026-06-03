@@ -104,12 +104,14 @@ describe('generateEvaluation — minimal input guard', () => {
 
 describe('opportunityCoverage field semantics', () => {
   it('high score means many opportunities captured (not many missed)', () => {
-    // @ts-expect-error accessing schema internal properties safely
-    const rubricProps = evalSchema.properties?.rubric?.properties;
+    const rubricSchema = evalSchema.properties?.['rubric'];
+    const rubricProps = rubricSchema?.properties;
     expect(rubricProps).toBeDefined();
 
-    const fieldDesc = rubricProps.opportunityCoverage.description;
-    expect(fieldDesc.toLowerCase()).toContain('higher is better');
-    expect(fieldDesc.toLowerCase()).not.toContain('100 means many missed');
+    const opportunitySchema = rubricProps?.['opportunityCoverage'];
+    const fieldDesc = opportunitySchema?.description;
+    expect(fieldDesc).toBeDefined();
+    expect(fieldDesc?.toLowerCase()).toContain('higher is better');
+    expect(fieldDesc?.toLowerCase()).not.toContain('100 means many missed');
   });
 });
