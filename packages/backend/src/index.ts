@@ -182,29 +182,32 @@ app.use(
 );
 app.use(express.json());
 
-// Expose dynamic configuration to the frontend
-app.get('/config', (req: Request, res: Response) => {
+/**
+ * Build the Phoenix trace viewer base URL from environment variables.
+ * Used by both GET /config and GET /session/:id to avoid duplication.
+ */
+function getPhoenixTraceBase(): string {
   const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
   let traceBase = 'https://app.phoenix.arize.com';
 
   const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
   if (collector.includes('/s/')) {
-    // Extract /s/{space-slug} from the collector endpoint
     const spaceMatch = collector.match(/\/s\/([^/]+)/);
     if (spaceMatch) {
       const spaceSlug = spaceMatch[1];
-      // Phoenix Cloud trace viewer URL format (verified 2025-2026):
-      // https://app.phoenix.arize.com/s/{space}/projects/{project}/traces
       traceBase = `https://app.phoenix.arize.com/s/${spaceSlug}/projects/${PHOENIX_PROJECT}/traces`;
     }
   } else if (collector.startsWith('http://localhost') || collector.startsWith('http://0.0.0.0')) {
-    // Self-hosted Phoenix: different URL structure
     const baseUrl = collector.replace(/\/v1\/traces\/?$/, '');
     traceBase = `${baseUrl}/projects/${PHOENIX_PROJECT}/traces`;
   }
+  return traceBase;
+}
 
+// Expose dynamic configuration to the frontend
+app.get('/config', (req: Request, res: Response) => {
   res.json({
-    phoenixTraceBase: traceBase,
+    phoenixTraceBase: getPhoenixTraceBase(),
   });
 });
 
@@ -276,20 +279,8 @@ app.get('/session/:id', async (req: Request, res: Response) => {
   const session = await requireSessionOwnership(req, res, sessionId);
   if (!session) return;
 
-  const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
-  let traceBase = 'https://app.phoenix.arize.com';
+  const traceBase = getPhoenixTraceBase();
   const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
-  if (collector.includes('/s/')) {
-    const spaceMatch = collector.match(/\/s\/([^/]+)/);
-    if (spaceMatch) {
-      const spaceSlug = spaceMatch[1];
-      traceBase = `https://app.phoenix.arize.com/s/${spaceSlug}/projects/${PHOENIX_PROJECT}/traces`;
-    }
-  } else if (collector.startsWith('http://localhost') || collector.startsWith('http://0.0.0.0')) {
-    const baseUrl = collector.replace(/\/v1\/traces\/?$/, '');
-    traceBase = `${baseUrl}/projects/${PHOENIX_PROJECT}/traces`;
-  }
-
   const phoenixTraceUrl =
     session.evalTraceId && collector ? `${traceBase}/${session.evalTraceId}` : null;
 
@@ -467,6 +458,11 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
           traceId: chunk.traceId,
         });
 
+        // Persist lastAgentAction so the next turn sees it even via streaming path
+        if (extractedNextAction) {
+          session.lastAgentAction = extractedNextAction as BackendSessionState['lastAgentAction'];
+        }
+
         await saveSession(session);
 
         res.write(
@@ -536,7 +532,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
     const evaluation = await generateEvaluation(session.trace || [], sessionId);
 
     // Introspection via MCP
-    const evalScore = evaluation.rubric?.overall || evaluation.score || 0;
+    const evalScore = evaluation.rubric?.overall ?? evaluation.score ?? 0;
     const introspection = await runIntrospection(sessionId, evalScore);
 
     // Save new strategy version

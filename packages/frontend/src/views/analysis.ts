@@ -117,8 +117,20 @@ export async function renderAnalysis(
             label: 'Share',
             variant: 'secondary',
             icon: 'share-2',
-            onClick: () =>
-              showToast({ title: 'Share', message: 'Link copied to clipboard!', type: 'success' }),
+            onClick: () => {
+              navigator.clipboard
+                .writeText(window.location.href)
+                .then(() =>
+                  showToast({
+                    title: 'Share',
+                    message: 'Link copied to clipboard!',
+                    type: 'success',
+                  }),
+                )
+                .catch(() =>
+                  showToast({ title: 'Share', message: 'Failed to copy link', type: 'error' }),
+                );
+            },
           }),
         );
       }
@@ -130,12 +142,9 @@ export async function renderAnalysis(
             label: 'Target Weaknesses',
             variant: 'primary',
             icon: 'dumbbell',
-            onClick: () =>
-              showToast({
-                title: 'Target Weaknesses',
-                message: 'Generating personalized curriculum...',
-                type: 'success',
-              }),
+            onClick: () => {
+              window.location.hash = `#/study/${currentSessionId}`;
+            },
           }),
         );
       }
@@ -304,14 +313,49 @@ export async function renderAnalysis(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   evaluation.weakTurns.forEach((wt: any) => {
+    // Build trace detail from real session data instead of LLM-generated traceData
+    let traceContent = '';
+    const turnMatch = wt.turnLabel?.match(/(\d+)/);
+    if (turnMatch && session.trace?.length) {
+      const turnIdx = parseInt(turnMatch[1], 10);
+      // Each turn is 2 trace entries (user + AI), so turn N starts at index (N-1)*2
+      const startIdx = Math.max(0, (turnIdx - 1) * 2);
+      const relevantTraces = session.trace.slice(startIdx, startIdx + 2);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      traceContent = relevantTraces
+        .map((t: any) => {
+          const role = t.type === 'user_message' ? 'You' : 'Interviewer';
+          const text = t.payload?.text || '';
+          const roleClass =
+            t.type === 'user_message'
+              ? 'color: var(--color-accent-700)'
+              : 'color: var(--color-gray-700)';
+          return (
+            `<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; background: ${
+              t.type === 'user_message' ? 'var(--color-accent-50)' : 'var(--color-gray-50)'
+            }">` +
+            `<div style="font-weight: 600; font-size: 12px; ${roleClass}; margin-bottom: 4px;">${escapeHtml(
+              role,
+            )}</div>` +
+            `<div style="font-size: 14px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(
+              text,
+            )}</div>` +
+            `</div>`
+          );
+        })
+        .join('');
+    }
+    if (!traceContent) {
+      traceContent =
+        '<div style="padding: 12px; color: var(--color-gray-500); font-style: italic;">No trace data available for this turn.</div>';
+    }
+
     const accordion = createAccordion(
       { label: 'Improvement Area', variant: 'warning' },
       wt.turnLabel,
       wt.summary,
       wt.explanation,
-      '<div class="bg-gray-50 p-4 rounded text-sm text-gray-800 space-y-2 whitespace-pre-wrap">' +
-        sanitiseHtml(wt.traceData || 'No trace data provided') +
-        '</div>',
+      `<div class="bg-gray-50 p-4 rounded text-sm text-gray-800">${traceContent}</div>`,
       toTitleCase(wt.failurePatternLabel),
     );
     weakTurnsCardContent.appendChild(accordion);
@@ -402,15 +446,25 @@ export async function renderAnalysis(
     if (queueContainer) {
       queueContainer.appendChild(
         createButton({
-          label: 'Queue Evaluation',
+          label: 'Start New Session',
           variant: 'primary',
-          icon: 'calendar',
-          onClick: () =>
-            showToast({
-              title: 'Evaluation Queued',
-              message: 'Next session will automatically apply these settings.',
-              type: 'success',
-            }),
+          icon: 'play',
+          onClick: () => {
+            // Pre-fill session wizard with same role/difficulty targeting weak areas
+            const weakAreas =
+              evaluation.weakTurns
+                ?.map((wt: { failurePatternLabel?: string }) => wt.failurePatternLabel)
+                .filter(Boolean) || [];
+            try {
+              sessionStorage.setItem(
+                'reflexa_prefill',
+                JSON.stringify({ ...session.config, weakAreas }),
+              );
+            } catch {
+              /* sessionStorage may be full */
+            }
+            window.location.hash = '#/session';
+          },
         }),
       );
     }
