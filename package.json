@@ -7,11 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:root",
-    "dev:root": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "npm --prefix packages/backend run dev",
-    "dev:frontend": "npm --prefix packages/frontend run dev",
-    "build": "npm run build --workspaces",
+    "dev": "pnpm run dev:root",
+    "dev:root": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+    "dev:backend": "pnpm --filter reflexa-backend run dev",
+    "dev:frontend": "pnpm --filter reflexa-frontend run dev",
+    "build": "pnpm run -r build",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "typecheck": "tsc -b",

@@ -160,7 +160,7 @@ app.use(
       // Parse FRONTEND_ORIGIN as a comma-separated list for staging + production
       const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
         .split(',')
-        .map((o) => o.trim())
+        .map((o) => o.trim().replace(/\/$/, ''))
         .filter(Boolean);
 
       // Allow requests with no origin (curl, server-to-server, Postman)
@@ -258,7 +258,7 @@ app.post('/session', async (req: Request, res: Response) => {
   const responsePayload = {
     session: newSession,
     strategyVersion: newSession.strategyVersion,
-    activeRulesCount: newSession.activeStrategyRules.length,
+    activeRulesCount: newSession.activeStrategyRules?.length || 0,
   };
   const parsedRes = APIContracts.CreateSessionResponse.safeParse(responsePayload);
   if (!parsedRes.success) {
@@ -295,7 +295,7 @@ app.get('/session/:id', async (req: Request, res: Response) => {
     session,
     phoenixTraceUrl,
     strategyVersion: session.strategyVersion,
-    activeRulesCount: session.activeStrategyRules.length,
+    activeRulesCount: session.activeStrategyRules?.length || 0,
   });
 });
 
