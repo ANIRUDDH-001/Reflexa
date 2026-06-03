@@ -1,3 +1,4 @@
+import { getUser, signOut } from './auth';
 import { refreshIcons } from './lucide';
 import { navigate, getCurrentRoute } from './router';
 
@@ -95,6 +96,59 @@ export function createShell(root: HTMLElement): HTMLElement {
   });
 
   sidebar.appendChild(nav);
+
+  // Sidebar footer — user info + sign out
+  const sidebarFooter = document.createElement('div');
+  sidebarFooter.className = 'sidebar__footer';
+  sidebarFooter.innerHTML = `
+    <div class="sidebar__user" id="sidebar-user">
+      <div class="sidebar__user-avatar" id="sidebar-avatar">
+        <i data-lucide="user"></i>
+      </div>
+      <div class="sidebar__user-info">
+        <span class="sidebar__user-name" id="sidebar-user-name">Loading…</span>
+        <span class="sidebar__user-email" id="sidebar-user-email"></span>
+      </div>
+    </div>
+    <button class="sidebar__sign-out" id="sidebar-sign-out" aria-label="Sign out">
+      <i data-lucide="log-out"></i>
+      <span class="sidebar__nav-label">Sign Out</span>
+    </button>
+  `;
+  sidebar.appendChild(sidebarFooter);
+
+  // Populate user info from Google profile
+  getUser()
+    .then((user) => {
+      if (!user) return;
+      const nameEl = document.getElementById('sidebar-user-name');
+      const emailEl = document.getElementById('sidebar-user-email');
+      const avatarEl = document.getElementById('sidebar-avatar');
+      const meta = user.user_metadata;
+      if (nameEl) nameEl.textContent = meta?.full_name || meta?.name || user.email || 'User';
+      if (emailEl) emailEl.textContent = user.email || '';
+      if (avatarEl && meta?.avatar_url) {
+        avatarEl.innerHTML = `<img src="${meta.avatar_url}" alt="" class="sidebar__avatar-img" />`;
+      }
+    })
+    .catch(() => {
+      /* silently ignore */
+    });
+
+  // Sign out handler
+  setTimeout(() => {
+    const signOutBtn = document.getElementById('sidebar-sign-out');
+    signOutBtn?.addEventListener('click', async () => {
+      try {
+        await signOut();
+        window.location.hash = '#/login';
+        window.location.reload();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[Reflexa] Sign out failed:', err);
+      }
+    });
+  }, 0);
 
   root.appendChild(sidebar);
 

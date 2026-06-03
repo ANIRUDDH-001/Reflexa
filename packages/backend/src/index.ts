@@ -16,6 +16,7 @@ import {
   CandidateAssessment,
 } from './engine/llm';
 import { buildOpeningMessage } from './engine/promptBuilder';
+import { extractAuthenticatedUser } from './middleware/auth';
 import { updateSessionPhase } from './phaseUtils';
 import {
   getLatestStrategy,
@@ -76,9 +77,10 @@ if (!process.env.PHOENIX_PROJECT_NAME) {
 
 const generateId = () => randomUUID();
 
-// Extract userId from header — header is preferred and mandatory (set by frontend).
-function extractUserId(req: Request): string | null {
-  return (req.headers['x-user-id'] as string | undefined) || null;
+// Extract userId from JWT or X-User-Id header (dev fallback).
+async function extractUserId(req: Request): Promise<string | null> {
+  const authUser = await extractAuthenticatedUser(req);
+  return authUser?.id ?? null;
 }
 
 /**
@@ -101,7 +103,7 @@ async function requireSessionOwnership(
     return null;
   }
 
-  const requestUserId = extractUserId(req);
+  const requestUserId = await extractUserId(req);
   if (!requestUserId) {
     res.status(401).json({ error: 'Authentication required. Send X-User-Id header.' });
     return null;
@@ -208,7 +210,7 @@ app.get('/config', (req: Request, res: Response) => {
 
 // Start a new session
 app.post('/session', async (req: Request, res: Response) => {
-  const userId = extractUserId(req);
+  const userId = await extractUserId(req);
   if (!userId) {
     return res.status(400).json({ error: 'Missing user identity. Send X-User-Id header.' });
   }
@@ -227,7 +229,7 @@ app.post('/session', async (req: Request, res: Response) => {
     focusAreas: parsedBody.data.config?.focusAreas ?? [],
   };
 
-  const latestStrategy = await getLatestStrategy();
+  const latestStrategy = await getLatestStrategy(userId);
 
   const newSession: BackendSessionState = {
     id: sessionId,
@@ -540,7 +542,11 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
     // Save new strategy version
     const newVersionId = `v${Date.now()}`;
     try {
-      await saveStrategy(newVersionId, introspection.newRules ?? session.activeStrategyRules);
+      await saveStrategy(
+        newVersionId,
+        introspection.newRules ?? session.activeStrategyRules,
+        session.userId,
+      );
     } catch (strategyErr) {
       logger.error(
         { sessionId: session.id, newVersionId, err: strategyErr },
@@ -615,7 +621,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
 // Fetch all history sessions
 app.get('/sessions', async (req: Request, res: Response) => {
-  const userId = extractUserId(req);
+  const userId = await extractUserId(req);
   if (!userId) {
     return res.status(400).json({ error: 'Missing user identity. Send X-User-Id header.' });
   }
@@ -630,7 +636,8 @@ app.get('/sessions', async (req: Request, res: Response) => {
 
 // GET /strategy/latest
 app.get('/strategy/latest', async (req: Request, res: Response) => {
-  const strategy = await getLatestStrategy();
+  const userId = await extractUserId(req);
+  const strategy = await getLatestStrategy(userId ?? undefined);
   res.json({
     version: strategy?.version || 'v0',
     rules: strategy?.rules || [],

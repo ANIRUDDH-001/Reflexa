@@ -1852,3 +1852,379 @@ pre {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
 }
+
+/* ==========================================================================
+ * 17. LOGIN PAGE
+ * ========================================================================== */
+
+.login-page {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--color-accent-50) 0%, var(--surface-body) 40%, var(--color-white) 100%);
+  overflow: hidden;
+}
+
+/* Animated background orbs */
+.login-page__background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-page__gradient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+  animation: loginOrbFloat 12s ease-in-out infinite alternate;
+}
+
+.login-page__gradient-orb--1 {
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, var(--color-accent-200) 0%, var(--color-accent-100) 60%, transparent 100%);
+  top: -120px;
+  right: -80px;
+  animation-delay: 0s;
+}
+
+.login-page__gradient-orb--2 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, var(--color-accent-300) 0%, var(--color-accent-100) 60%, transparent 100%);
+  bottom: -100px;
+  left: -60px;
+  animation-delay: -6s;
+}
+
+@keyframes loginOrbFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -20px) scale(1.08); }
+  100% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+/* Login Card */
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: var(--space-6);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.04),
+    0 20px 40px -8px rgba(13, 148, 136, 0.1),
+    0 0 0 1px rgba(13, 148, 136, 0.04);
+  padding: var(--space-10) var(--space-8) var(--space-8);
+  text-align: center;
+}
+
+.login-card__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.login-card__logo-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  animation: loginLogoReveal 0.6s ease both;
+  animation-delay: 0.1s;
+}
+
+.login-card__logo-img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+}
+
+@keyframes loginLogoReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.login-card__brand {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--color-gray-900);
+  letter-spacing: -0.02em;
+  animation: loginTextReveal 0.5s ease both;
+  animation-delay: 0.2s;
+}
+
+.login-card__tagline {
+  font-size: var(--text-sm);
+  color: var(--color-gray-500);
+  font-weight: var(--font-medium);
+  max-width: 280px;
+  line-height: var(--leading-normal);
+  animation: loginTextReveal 0.5s ease both;
+  animation-delay: 0.3s;
+}
+
+@keyframes loginTextReveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-card__divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-gray-200) 30%,
+    var(--color-accent-200) 50%,
+    var(--color-gray-200) 70%,
+    transparent 100%
+  );
+  margin: var(--space-6) 0;
+  animation: loginTextReveal 0.5s ease both;
+  animation-delay: 0.35s;
+}
+
+.login-card__body {
+  animation: loginTextReveal 0.5s ease both;
+  animation-delay: 0.4s;
+}
+
+.login-card__cta {
+  font-size: var(--text-sm);
+  color: var(--color-gray-500);
+  margin-bottom: var(--space-5);
+}
+
+/* Google Sign-In Button */
+.login-card__google-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-gray-700);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card__google-btn:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-400);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.login-card__google-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.login-card__google-btn:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: 2px;
+}
+
+.login-card__google-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Loading state for the Google button */
+.login-card__google-btn.btn--loading {
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.login-card__google-btn.btn--loading .login-card__google-icon {
+  visibility: hidden;
+}
+
+.login-card__google-btn.btn--loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.2em;
+  height: 1.2em;
+  margin-top: -0.6em;
+  margin-left: -0.6em;
+  border: 2px solid var(--color-gray-200);
+  border-top-color: var(--color-accent-500);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.login-card__google-icon {
+  flex-shrink: 0;
+}
+
+.login-card__footer {
+  margin-top: var(--space-6);
+  animation: loginTextReveal 0.5s ease both;
+  animation-delay: 0.5s;
+}
+
+.login-card__footer-text {
+  font-size: var(--text-xs);
+  color: var(--color-gray-400);
+  line-height: var(--leading-normal);
+}
+
+/* Login page responsive */
+@media (max-width: 480px) {
+  .login-card {
+    margin: var(--space-4);
+    padding: var(--space-8) var(--space-5) var(--space-6);
+  }
+}
+
+/* ==========================================================================
+ * 18. SIDEBAR FOOTER — USER INFO & SIGN OUT
+ * ========================================================================== */
+
+.sidebar__footer {
+  padding: var(--space-3) var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.sidebar__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+}
+
+.sidebar__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+
+.sidebar__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+}
+
+.sidebar__user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar__user-name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__user-email {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__sign-out {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.sidebar__sign-out:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-white);
+}
+
+.sidebar__sign-out svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Collapsed sidebar: hide footer text */
+.sidebar--collapsed .sidebar__user-info {
+  opacity: 0;
+  width: 0;
+}
+
+.sidebar--collapsed .sidebar__footer {
+  padding: var(--space-2) 0;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar--collapsed .sidebar__user {
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.sidebar--collapsed .sidebar__sign-out {
+  justify-content: center;
+  padding: var(--space-2);
+  width: 40px;
+}
+

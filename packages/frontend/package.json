@@ -8,7 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@reflexa/shared": "file:../shared"
+    "@reflexa/shared": "file:../shared",
+    "@supabase/supabase-js": "^2.106.2"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.3",

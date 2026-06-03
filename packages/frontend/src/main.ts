@@ -2,6 +2,7 @@
 import './styles.css';
 import { API_BASE, api, setCurrentUserId, getLatestStrategyInfo } from './api';
 import { setPhoenixTraceBase } from './api';
+import { getSession, onAuthStateChange } from './auth';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
 import { createShell } from './shell';
@@ -9,6 +10,7 @@ import { renderAnalysis } from './views/analysis';
 import { renderDashboard } from './views/dashboard';
 import { renderHistory } from './views/history';
 import { renderInterview } from './views/interview';
+import { renderLogin } from './views/login';
 import { renderSession } from './views/session';
 
 // ── User Identity ──────────────────────────────────────────────────────────────
@@ -110,9 +112,13 @@ async function renderSettings(container: HTMLElement): Promise<void> {
   }
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
-const app = document.getElementById('app');
-if (app) {
+// ── App bootstrap helpers ─────────────────────────────────────────────────────
+let shellBootstrapped = false;
+
+function bootstrapApp(app: HTMLElement): void {
+  if (shellBootstrapped) return;
+  shellBootstrapped = true;
+
   const contentContainer = createShell(app);
 
   registerRoute('/', renderDashboard);
@@ -121,7 +127,47 @@ if (app) {
   registerRoute('/analysis/:id', renderAnalysis);
   registerRoute('/history', renderHistory);
   registerRoute('/settings', renderSettings);
+  registerRoute('/login', renderLogin);
 
   setRouterContainer(contentContainer);
   initRouter();
+}
+
+function showLogin(app: HTMLElement): void {
+  app.innerHTML = '';
+  app.classList.remove('layout-app');
+  renderLogin(app);
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+const app = document.getElementById('app');
+if (app) {
+  // Check auth session before rendering
+  getSession()
+    .then((session) => {
+      if (session) {
+        // Authenticated → render full app
+        bootstrapApp(app);
+      } else {
+        // Not authenticated → show login page (bypass shell)
+        showLogin(app);
+      }
+    })
+    .catch((err) => {
+      console.error('[Reflexa] Auth check failed:', err);
+      // On error, show login as fallback
+      showLogin(app);
+    });
+
+  // Listen for auth state changes (login/logout transitions)
+  onAuthStateChange((session) => {
+    if (session && !shellBootstrapped) {
+      // User just logged in → bootstrap the app
+      bootstrapApp(app);
+    } else if (!session) {
+      // User logged out → show login
+      shellBootstrapped = false;
+      showLogin(app);
+    }
+  });
 }

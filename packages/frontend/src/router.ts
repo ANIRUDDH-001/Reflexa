@@ -3,6 +3,8 @@
  * Maps hash routes to view-render functions.
  */
 
+import { getSession } from './auth';
+
 export type RouteHandler = (container: HTMLElement, params?: Record<string, string>) => void;
 
 interface Route {
@@ -48,10 +50,24 @@ export function getCurrentRoute(): string {
 }
 
 /** Resolve and render the current route */
-function resolveRoute(): void {
+async function resolveRoute(): Promise<void> {
   if (!contentContainer) return;
 
   const path = getCurrentRoute();
+
+  // Auth guard: allow /login without session; everything else requires auth
+  if (path !== '/login') {
+    try {
+      const session = await getSession();
+      if (!session) {
+        window.location.hash = '#/login';
+        return;
+      }
+    } catch {
+      window.location.hash = '#/login';
+      return;
+    }
+  }
 
   let match: RegExpMatchArray | null = null;
   let activeRoute: Route | undefined;

@@ -32,6 +32,18 @@ vi.mock('./state/db', () => {
   };
 });
 
+vi.mock('./middleware/auth', () => ({
+  extractAuthenticatedUser: vi
+    .fn()
+    .mockImplementation(async (req: { headers: Record<string, string | undefined> }) => {
+      const headerUserId = req.headers['x-user-id'];
+      if (headerUserId) {
+        return { id: headerUserId };
+      }
+      return null;
+    }),
+}));
+
 vi.mock('./engine/llm', () => ({
   processTurn: vi.fn().mockResolvedValue({ agentMessage: 'Hello', traceId: '123' }),
   generateEvaluation: vi.fn().mockResolvedValue({ rubric: { overall: 50 }, summary: 'test' }),

@@ -3,6 +3,7 @@
 export const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 import type { SessionConfig, TurnStreamEvent } from '@reflexa/shared';
+import { getAccessToken, getUser } from './auth';
 
 export let PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
 export function setPhoenixTraceBase(base: string) {
@@ -17,14 +18,44 @@ export function setCurrentUserId(id: string): void {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API_BASE}${path}`, {
+  // Get JWT access token from Supabase session
+  const token = await getAccessToken();
+
+  // Get authenticated user ID as fallback X-User-Id
+  const authHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-User-Id': _userId,
+  };
+
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
+  // If we have an authenticated user, prefer their ID for X-User-Id
+  try {
+    const user = await getUser();
+    if (user) {
+      authHeaders['X-User-Id'] = user.id;
+    }
+  } catch {
+    // Fall back to localStorage-based _userId
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': _userId,
+      ...authHeaders,
       ...(init?.headers ?? {}),
     },
   });
+
+  // Handle 401 by redirecting to login
+  if (response.status === 401) {
+    window.location.hash = '#/login';
+    throw new Error('Unauthorized — redirecting to login');
+  }
+
+  return response;
 }
 
 export const api = {

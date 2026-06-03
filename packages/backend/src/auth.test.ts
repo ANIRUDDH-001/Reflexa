@@ -40,6 +40,18 @@ vi.mock('./state/db', () => ({
   getLatestStrategy: vi.fn().mockResolvedValue({ version: 'v1.0.0', rules: [] }),
 }));
 
+vi.mock('./middleware/auth', () => ({
+  extractAuthenticatedUser: vi
+    .fn()
+    .mockImplementation(async (req: { headers: Record<string, string | undefined> }) => {
+      const headerUserId = req.headers['x-user-id'];
+      if (headerUserId) {
+        return { id: headerUserId };
+      }
+      return null;
+    }),
+}));
+
 import { getSession } from './state/db';
 import type { BackendSessionState } from './state/types';
 import { app } from './index';

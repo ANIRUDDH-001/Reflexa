@@ -81,16 +81,41 @@ function sessionToRow(session: BackendSessionState): Record<string, any> {
 
 // ── Strategies ─────────────────────────────────────────────────
 
-export async function getLatestStrategy(): Promise<{ version: string; rules: string[] } | null> {
+export async function getLatestStrategy(
+  userId?: string,
+): Promise<{ version: string; rules: string[] } | null> {
+  // Try user-specific strategy first
+  if (userId) {
+    const { data, error } = await db()
+      .from('strategies')
+      .select('version, rules')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[db] getLatestStrategy (user) error:', error.message);
+      // Fall through to global lookup
+    } else if (data) {
+      return {
+        version: data.version,
+        rules: Array.isArray(data.rules) ? data.rules : JSON.parse(data.rules as string),
+      };
+    }
+  }
+
+  // Fallback: global strategy (user_id IS NULL)
   const { data, error } = await db()
     .from('strategies')
     .select('version, rules')
+    .is('user_id', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error) {
-    console.error('[db] getLatestStrategy error:', error.message);
+    console.error('[db] getLatestStrategy (global) error:', error.message);
     return null;
   }
   if (!data) return null;
@@ -101,10 +126,17 @@ export async function getLatestStrategy(): Promise<{ version: string; rules: str
   };
 }
 
-export async function saveStrategy(version: string, rules: string[]): Promise<void> {
+export async function saveStrategy(
+  version: string,
+  rules: string[],
+  userId?: string,
+): Promise<void> {
   const { error } = await db()
     .from('strategies')
-    .upsert({ version, rules, created_at: new Date().toISOString() }, { onConflict: 'version' });
+    .upsert(
+      { version, rules, created_at: new Date().toISOString(), user_id: userId ?? null },
+      { onConflict: 'version' },
+    );
 
   if (error) {
     throw new Error(`[db] saveStrategy failed: ${error.message}`);

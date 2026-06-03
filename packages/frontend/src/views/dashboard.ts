@@ -49,18 +49,22 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     /* ---------- Stats row ---------- */
 
     const statsHtml = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);margin-bottom:var(--space-6)">
-        <div class="panel p-4 text-center">
-          <p class="text-sm text-gray-500" style="margin-bottom:var(--space-1)">Total Sessions</p>
-          <p class="text-2xl font-semibold">${totalSessions}</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-5);margin-bottom:var(--space-6)">
+        <div class="panel p-6 text-center" style="background: var(--color-accent-50); border: 1px solid var(--color-accent-200);">
+          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Total Sessions</p>
+          <p class="text-3xl font-bold text-gray-900">${totalSessions}</p>
         </div>
-        <div class="panel p-4 text-center">
-          <p class="text-sm text-gray-500" style="margin-bottom:var(--space-1)">Latest Score</p>
-          <p class="text-2xl font-semibold">${latestScore !== null ? latestScore + '%' : '—'}</p>
+        <div class="panel p-6 text-center" style="background: var(--color-accent-50); border: 1px solid var(--color-accent-200);">
+          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Latest Score</p>
+          <p class="text-3xl font-bold text-gray-900">${
+            latestScore !== null ? latestScore + '%' : '—'
+          }</p>
         </div>
-        <div class="panel p-4 text-center">
-          <p class="text-sm text-gray-500" style="margin-bottom:var(--space-1)">Average Score</p>
-          <p class="text-2xl font-semibold">${avgScore !== null ? avgScore + '%' : '—'}</p>
+        <div class="panel p-6 text-center" style="background: var(--color-accent-50); border: 1px solid var(--color-accent-200);">
+          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Average Score</p>
+          <p class="text-3xl font-bold text-gray-900">${
+            avgScore !== null ? avgScore + '%' : '—'
+          }</p>
         </div>
       </div>
     `;
@@ -68,14 +72,17 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     /* ---------- Recent sessions ---------- */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const listHtml = sessions
-      .map((s: any) => {
+      .map((s: any, idx: number) => {
         const date = escapeHtml(new Date(s.startedAt).toLocaleDateString());
         const role = escapeHtml(s.config?.role || 'Engineer');
         const scoreVal = s.evaluation?.rubric?.overall ?? s.evaluation?.score;
         const score = scoreVal !== undefined ? escapeHtml(scoreVal + '%') : 'Pending';
 
+        // Add staggered delay
+        const delay = idx * 0.05;
+
         return `
-        <div class="panel p-4 mb-4 flex items-center justify-between hover:border-accent transition-colors">
+        <div class="panel p-4 mb-4 flex items-center justify-between hover:border-accent transition-colors animate-slide-up" style="animation-delay: ${delay}s">
           <div>
             <h4 class="font-semibold text-gray-900">${role} Interview</h4>
             <p class="text-sm text-gray-500">Score: <span class="font-medium text-gray-800">${score}</span> • ${date}</p>
@@ -92,7 +99,7 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     /* ---------- Assemble ---------- */
 
     container.innerHTML = `
-      <div class="max-w-4xl mx-auto">
+      <div class="w-full">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-semibold">Dashboard</h2>
           <button class="btn btn--primary" onclick="window.location.hash='#/session'">
