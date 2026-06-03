@@ -160,29 +160,38 @@ describe('sanitiseInput', () => {
 // ---------------------------------------------------------------------------
 // Strategy overrides
 // ---------------------------------------------------------------------------
-describe('assemblePrompt – strategy overrides', () => {
-  it('includes Strategy Overrides section when activeStrategyRules has entries', () => {
-    const prompt = assemblePrompt(
-      makeState({
-        activeStrategyRules: ['Probe deeper on vague answers', 'Reduce hint frequency'],
-      }),
-    );
+describe('strategy rules injection', () => {
+  const baseState = makeState();
 
-    expect(prompt).toContain('Strategy Overrides');
-    expect(prompt).toContain('Probe deeper on vague answers');
-    expect(prompt).toContain('Reduce hint frequency');
+  it('injects strategy rules into prompt as HIGH PRIORITY block', () => {
+    const prompt = assemblePrompt({
+      ...baseState,
+      activeStrategyRules: [
+        'Ask for specific examples when answers are vague',
+        'Do not accept hypothetical answers in behavioral interviews',
+      ],
+    });
+    expect(prompt).toContain('Ask for specific examples when answers are vague');
+    expect(prompt.toUpperCase()).toContain('HIGH PRIORITY');
   });
 
-  it('omits Strategy Overrides section when activeStrategyRules is empty', () => {
-    const prompt = assemblePrompt(makeState({ activeStrategyRules: [] }));
-
-    expect(prompt).not.toContain('Strategy Overrides');
+  it('shows baseline message when no rules are active', () => {
+    const prompt = assemblePrompt({
+      ...baseState,
+      activeStrategyRules: [],
+    });
+    expect(prompt).toContain('No strategy rules active');
+    expect(prompt).not.toContain('HIGH PRIORITY');
   });
 
-  it('omits Strategy Overrides section when activeStrategyRules is undefined', () => {
-    const prompt = assemblePrompt(makeState({ activeStrategyRules: undefined }));
-
-    expect(prompt).not.toContain('Strategy Overrides');
+  it('numbers the rules in the prompt', () => {
+    const prompt = assemblePrompt({
+      ...baseState,
+      activeStrategyRules: ['Rule one', 'Rule two', 'Rule three'],
+    });
+    expect(prompt).toContain('1. Rule one');
+    expect(prompt).toContain('2. Rule two');
+    expect(prompt).toContain('3. Rule three');
   });
 });
 

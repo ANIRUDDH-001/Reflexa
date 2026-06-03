@@ -20,10 +20,21 @@ export const CreateSessionRequest = z
     config: SessionConfig.optional(),
   })
   .strict();
-export const CreateSessionResponse = z.object({ session: InterviewSession }).strict();
+export const CreateSessionResponse = z
+  .object({
+    session: InterviewSession,
+    strategyVersion: z.string().optional(),
+    activeRulesCount: z.number().optional(),
+  })
+  .strict();
 
 export const GetSessionResponse = z
-  .object({ session: InterviewSession, phoenixTraceUrl: z.string().nullable().optional() })
+  .object({
+    session: InterviewSession,
+    phoenixTraceUrl: z.string().nullable().optional(),
+    strategyVersion: z.string().optional(),
+    activeRulesCount: z.number().optional(),
+  })
   .strict();
 
 export const TurnRequest = z

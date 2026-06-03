@@ -255,7 +255,11 @@ app.post('/session', async (req: Request, res: Response) => {
 
   await saveSession(newSession);
 
-  const responsePayload = { session: newSession };
+  const responsePayload = {
+    session: newSession,
+    strategyVersion: newSession.strategyVersion,
+    activeRulesCount: newSession.activeStrategyRules.length,
+  };
   const parsedRes = APIContracts.CreateSessionResponse.safeParse(responsePayload);
   if (!parsedRes.success) {
     return res.status(500).json({ error: 'contract mismatch', details: parsedRes.error.format() });
@@ -287,13 +291,12 @@ app.get('/session/:id', async (req: Request, res: Response) => {
   const phoenixTraceUrl =
     session.evalTraceId && collector ? `${traceBase}/${session.evalTraceId}` : null;
 
-  const responsePayload = { session, phoenixTraceUrl };
-  const parsedRes = APIContracts.GetSessionResponse.safeParse(responsePayload);
-  if (!parsedRes.success) {
-    return res.status(500).json({ error: 'contract mismatch', details: parsedRes.error.format() });
-  }
-
-  return res.json(responsePayload);
+  res.json({
+    session,
+    phoenixTraceUrl,
+    strategyVersion: session.strategyVersion,
+    activeRulesCount: session.activeStrategyRules.length,
+  });
 });
 
 // Submit an answer (user turn)
@@ -615,6 +618,16 @@ app.get('/sessions', async (req: Request, res: Response) => {
     const err = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ error: 'Failed to fetch history', details: err });
   }
+});
+
+// GET /strategy/latest
+app.get('/strategy/latest', async (req: Request, res: Response) => {
+  const strategy = await getLatestStrategy();
+  res.json({
+    version: strategy?.version || 'v0',
+    rules: strategy?.rules || [],
+    rulesCount: strategy?.rules?.length || 0,
+  });
 });
 
 // Compare session to previous
