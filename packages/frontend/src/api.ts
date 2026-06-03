@@ -81,6 +81,20 @@ export const api = {
   },
 };
 
+export async function getLatestStrategyInfo(): Promise<{
+  version: string;
+  rulesCount: number;
+  rules: string[];
+} | null> {
+  try {
+    const res = await apiFetch(`/strategy/latest`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Streaming turn via SSE.
  * Yields TurnStreamEvent objects as they arrive from the backend.

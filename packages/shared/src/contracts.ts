@@ -68,7 +68,22 @@ export const EndSessionResponse = z
 // SSE streaming event types — shared between backend emitter and frontend consumer
 export type TurnStreamEvent =
   | { type: 'token'; text: string }
-  | { type: 'done'; traceId: string; phase: string; turnCount: number }
+  | {
+      type: 'done';
+      traceId: string;
+      phase: string;
+      turnCount: number;
+      metadata?: {
+        nextActionIndicator?: string;
+        statusMetadata?: string;
+        assessment?: {
+          depthSignal?: string;
+          topicCoverage?: number;
+          shouldTransition?: boolean;
+          observedWeakness?: string;
+        };
+      };
+    }
   | { type: 'error'; message: string };
 
 export const APIContracts = {

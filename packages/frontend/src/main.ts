@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import './styles.css';
-import { API_BASE, api, setCurrentUserId } from './api';
+import { API_BASE, api, setCurrentUserId, getLatestStrategyInfo } from './api';
 import { setPhoenixTraceBase } from './api';
 import { refreshIcons } from './lucide';
 import { registerRoute, setRouterContainer, initRouter } from './router';
@@ -66,16 +66,13 @@ async function renderSettings(container: HTMLElement): Promise<void> {
   container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading settings...</div>';
   try {
     let strategyVersion = 'Unknown';
+    let rulesCount = 0;
     try {
-      const res = await api.getSessions();
-      const sessions = res.sessions || [];
-      if (sessions.length > 0) {
-        const latestSessionId = sessions[0].id;
-        const sessionDetail = await api.getSession(latestSessionId);
-        strategyVersion = sessionDetail.session?.strategyVersion || 'Unknown';
-      }
+      const [, strategyInfo] = await Promise.all([api.getSessions(), getLatestStrategyInfo()]);
+      strategyVersion = strategyInfo?.version || 'v0';
+      rulesCount = strategyInfo?.rulesCount || 0;
     } catch (e) {
-      console.warn('Could not fetch strategy version', e);
+      console.warn('Could not fetch strategy info', e);
     }
 
     container.innerHTML = `
@@ -100,7 +97,7 @@ async function renderSettings(container: HTMLElement): Promise<void> {
             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Current Strategy Version</h3>
             <div class="flex items-center gap-2">
               <i data-lucide="git-commit" class="text-gray-400"></i>
-              <span class="text-gray-800 font-medium">${strategyVersion}</span>
+              <span class="text-gray-800 font-medium">${strategyVersion} (${rulesCount} active rules)</span>
             </div>
           </div>
         </div>

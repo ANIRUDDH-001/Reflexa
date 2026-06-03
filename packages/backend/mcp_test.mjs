@@ -4,6 +4,11 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const transport = new StdioClientTransport({
   command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
   args: ['--yes', '@arizeai/phoenix-mcp'],
+  env: {
+    ...process.env,
+    PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',
+    PHOENIX_COLLECTOR_ENDPOINT: process.env.PHOENIX_COLLECTOR_ENDPOINT || '',
+  },
 });
 
 const client = new Client({

@@ -434,12 +434,15 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
         let extractedScore: number | undefined = undefined;
         let extractedAssessment: CandidateAssessment | undefined = undefined;
 
+        let extractedNextAction: string | undefined = undefined;
+
         try {
           const parsedText = JSON.parse(chunk.fullText);
           if (parsedText.agentMessage) extractedMessage = parsedText.agentMessage;
           extractedStatus = parsedText.statusMetadata;
           extractedScore = parsedText.scoreHints;
           extractedAssessment = parsedText.candidateAssessment;
+          extractedNextAction = parsedText.nextActionIndicator;
         } catch {
           const match = chunk.fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
           if (match) extractedMessage = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
@@ -470,6 +473,11 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
             traceId: chunk.traceId,
             phase: session.interviewPhase,
             turnCount: session.turnCount,
+            metadata: {
+              nextActionIndicator: extractedNextAction || session.lastAgentAction || 'ask_question',
+              statusMetadata: extractedStatus,
+              assessment: extractedAssessment,
+            },
           })}\n\n`,
         );
       } else if (chunk.type === 'error') {

@@ -146,7 +146,21 @@ export async function renderInterview(
   const rubricContent = document.createElement('div');
   rubricContent.id = 'rubric-content';
   // Safe: hardcoded static HTML
-  rubricContent.innerHTML = '<div class="text-sm text-gray-500">Loading session metrics...</div>';
+  rubricContent.innerHTML = `
+    <div class="text-sm font-medium mb-1">Last Action</div>
+    <div class="text-sm text-gray-600 mb-3" data-field="last-action">Waiting for first turn...</div>
+    <div class="text-sm text-accent mb-3" data-field="status"></div>
+    <div class="flex gap-4">
+      <div>
+        <div class="text-xs text-gray-500 uppercase">Depth</div>
+        <div class="text-sm font-medium" data-field="depth-signal">-</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 uppercase">Coverage</div>
+        <div class="text-sm font-medium" data-field="topic-coverage">-</div>
+      </div>
+    </div>
+  `;
   sidebar.appendChild(createCard({ title: 'Session Metadata', content: rubricContent }));
 
   const progressContent = document.createElement('div');
@@ -305,6 +319,34 @@ export async function renderInterview(
             );
           }
 
+          // ── ADD: refresh sidebar metadata ─────────────────────────────
+          const metadataEl = document.getElementById('rubric-content');
+          if (metadataEl && event.metadata) {
+            const lastAction = event.metadata.nextActionIndicator || 'ask_question';
+            const statusText = event.metadata.statusMetadata || '';
+            const assessment = event.metadata.assessment;
+
+            // Update "Last Action" badge
+            const actionEl = metadataEl.querySelector('[data-field="last-action"]');
+            if (actionEl) actionEl.textContent = lastAction;
+
+            // Update "Last AI status"
+            const statusEl = metadataEl.querySelector('[data-field="status"]');
+            if (statusEl) statusEl.textContent = statusText;
+
+            // If candidateAssessment added in 03_03, show it too:
+            if (assessment) {
+              const depthEl = metadataEl.querySelector('[data-field="depth-signal"]');
+              if (depthEl) depthEl.textContent = assessment.depthSignal || '-';
+
+              const coverageEl = metadataEl.querySelector('[data-field="topic-coverage"]');
+              if (coverageEl)
+                coverageEl.textContent =
+                  assessment.topicCoverage != null ? `${assessment.topicCoverage}%` : '-';
+            }
+          }
+          // ── END sidebar refresh ────────────────────────────────────────
+
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } else if (event.type === 'error') {
           typingEl.remove();
@@ -434,16 +476,28 @@ export async function renderInterview(
           // Safe: escaped dynamic values
           document.getElementById('rubric-content')!.innerHTML = `
             <div class="text-sm font-medium mb-1">Last Action</div>
-            <div class="text-sm text-gray-600 mb-3">${escapeHtml(
+            <div class="text-sm text-gray-600 mb-3" data-field="last-action">${escapeHtml(
               session.lastAgentAction || 'Started session',
             )}</div>
-            ${
-              lastAiMsg.payload?.metadata?.status
-                ? '<div class="text-sm text-accent">' +
-                  escapeHtml(lastAiMsg.payload.metadata.status) +
-                  '</div>'
-                : ''
-            }
+            <div class="text-sm text-accent mb-3" data-field="status">${escapeHtml(
+              lastAiMsg.payload?.metadata?.status || '',
+            )}</div>
+            <div class="flex gap-4">
+              <div>
+                <div class="text-xs text-gray-500 uppercase">Depth</div>
+                <div class="text-sm font-medium" data-field="depth-signal">${escapeHtml(
+                  lastAiMsg.payload?.assessment?.depthSignal || '-',
+                )}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500 uppercase">Coverage</div>
+                <div class="text-sm font-medium" data-field="topic-coverage">${
+                  lastAiMsg.payload?.assessment?.topicCoverage != null
+                    ? lastAiMsg.payload.assessment.topicCoverage + '%'
+                    : '-'
+                }</div>
+              </div>
+            </div>
           `;
         }
       }
