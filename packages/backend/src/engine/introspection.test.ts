@@ -165,3 +165,35 @@ describe('runIntrospection', () => {
     expect(result.whatFailed).toContain('Introspection failed due to an error.');
   });
 });
+
+describe('runIntrospection — with real MCP tools (integration)', () => {
+  // These tests require real Phoenix credentials — skip in CI
+  const SKIP = !process.env.PHOENIX_API_KEY;
+
+  it.skipIf(SKIP)('returns non-fallback result when MCP is connected', async () => {
+    // Use an actual session ID from a completed session in Phoenix
+    const sessionId = process.env.TEST_SESSION_ID || 'skip';
+    if (sessionId === 'skip') return;
+
+    // Use a high score so the LLM doesn't complain about extremely bad performance
+    const result = await runIntrospection(sessionId, 75);
+
+    expect(result.whatFailed).not.toBe('MCP unavailable. Retaining baseline strategy.');
+    expect(result.newRules).toBeInstanceOf(Array);
+    expect(result.newRules.length).toBeGreaterThan(0);
+    expect(result.newRules.every((r: string) => typeof r === 'string')).toBe(true);
+  });
+
+  it.skipIf(SKIP)('newRules are non-trivial (not just Continue evaluating normally)', async () => {
+    const sessionId = process.env.TEST_SESSION_ID;
+    if (!sessionId) return;
+
+    const result = await runIntrospection(sessionId, 75);
+    const trivialRules = ['Continue evaluating normally.', 'N/A', ''];
+
+    result.newRules.forEach((rule: string) => {
+      expect(trivialRules).not.toContain(rule);
+      expect(rule.length).toBeGreaterThan(15); // must be a real sentence
+    });
+  });
+});

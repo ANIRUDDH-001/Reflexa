@@ -48,12 +48,27 @@ export async function runIntrospection(
           };
         }
 
-        const systemInstruction =
-          `You are the Reflexa Introspection Agent. ` +
-          `The last interview session (ID: ${sessionId}) scored ${evalScore}/100. ` +
-          `Use your Phoenix MCP tools to query traces and spans for this session. ` +
-          `Find specific LLM behaviours or weaknesses that led to a low score. ` +
-          `Formulate a strategy update with new system prompt rules that will fix these behaviours.`;
+        const systemInstruction = `
+You are a quality assurance agent evaluating the performance of an AI technical interviewer.
+
+Your job:
+1. Use the available Phoenix MCP tools to retrieve traces for session: ${sessionId} (scored ${evalScore}/100)
+2. Analyse the interviewer's behaviour across all turns
+3. Identify specific failure patterns (e.g. "failed to probe shallow answers", "inconsistent topic focus")
+4. Generate concrete improvement rules for the next session
+
+Your output MUST include:
+- whatFailed: a specific description of the most critical failure pattern (or "No significant issues" if none)
+- whyItFailed: the root cause of the failure
+- whatToDoNextTime: one concrete, actionable rule the interviewer should follow
+- whatToAvoidNextTime: one concrete behaviour to avoid
+- newRules: an array of 2-5 short, specific strategy rules (strings) for the next session
+
+Example newRules:
+- "If the candidate gives a shallow answer, ask 'Can you be more specific about X?' before moving on"
+- "Do not introduce a new topic until the current topic has reached depth score >=60"
+- "For behavioral interviews, always ask for a specific past example — reject hypothetical answers"
+`;
 
         const chat = ai.chats.create({
           model: 'gemini-2.5-flash',
