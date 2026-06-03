@@ -1,9 +1,9 @@
+import 'dotenv/config';
 import { randomUUID } from 'crypto';
 import './telemetry';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response, NextFunction } from 'express';
-import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import pino from 'pino';
