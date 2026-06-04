@@ -165,25 +165,29 @@ export async function renderAnalysis(
       let trendHtml = '';
       if (isComparing && comparison && comparison.delta[key] !== undefined) {
         const deltaVal = comparison.delta[key];
-        const trendType = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : 'neutral';
-        const trendIcon =
-          trendType === 'positive'
-            ? 'trending-up'
-            : trendType === 'negative'
-            ? 'trending-down'
-            : 'minus';
-        const trendColor =
-          trendType === 'positive'
-            ? 'text-success'
-            : trendType === 'negative'
-            ? 'text-error'
-            : 'text-gray-500';
-        trendHtml = `
+        if (typeof deltaVal !== 'number' || !Number.isFinite(deltaVal)) {
+          // Skip delta display for invalid values
+        } else {
+          const trendType = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : 'neutral';
+          const trendIcon =
+            trendType === 'positive'
+              ? 'trending-up'
+              : trendType === 'negative'
+              ? 'trending-down'
+              : 'minus';
+          const trendColor =
+            trendType === 'positive'
+              ? 'text-success'
+              : trendType === 'negative'
+              ? 'text-error'
+              : 'text-gray-500';
+          trendHtml = `
           <div class="text-sm font-medium ${trendColor} mb-1 flex items-center gap-1">
             <i data-lucide="${trendIcon}" style="width: 14px; height: 14px"></i>
             ${deltaVal > 0 ? '+' : ''}${deltaVal}%
           </div>
         `;
+        } // end else (valid delta)
       }
 
       const card = document.createElement('div');
@@ -477,6 +481,16 @@ export async function renderAnalysis(
     weakTurnsCardContent.appendChild(accordion);
   });
 
+  // M16: Empty state when no weak turns detected
+  if (!evaluation.weakTurns?.length) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.className = 'p-4 text-sm text-gray-500';
+    emptyMsg.style.fontStyle = 'italic';
+    emptyMsg.style.textAlign = 'center';
+    emptyMsg.textContent = 'No critical anomalies detected — great session!';
+    weakTurnsCardContent.appendChild(emptyMsg);
+  }
+
   leftCol.appendChild(createCard({ title: 'Critical Anomalies', content: weakTurnsCardContent }));
 
   // Right Column: Recommendations & Strategy
@@ -485,22 +499,39 @@ export async function renderAnalysis(
 
   const strategyContent = document.createElement('div');
   const strategyOverrides: string[] = evaluation.strategyOverrides || [];
-  const stratList = strategyOverrides.map((s: string) => '<li>' + escapeHtml(s) + '</li>').join('');
 
-  // Safe: dynamic list items escaped
-  strategyContent.innerHTML = `
-    <p class="text-sm text-gray-600 mb-4">Your next generated session will be specifically tuned to pressure-test these weaknesses.</p>
-    <ul class="text-sm text-gray-800 flex flex-col gap-2 mb-4 list-disc pl-4">
-      ${stratList}
-    </ul>
-    <div class="flex gap-2 mt-auto">
+  // M17: Handle empty strategy overrides
+  if (strategyOverrides.length === 0) {
+    strategyContent.innerHTML = `
+      <p class="text-sm text-gray-500" style="font-style: italic; text-align: center; padding: 1rem;">
+        No strategy adjustments recommended — the interviewer performed well this session.
+      </p>
+    `;
+  } else {
+    const stratList = strategyOverrides
+      .map((s: string) => '<li>' + escapeHtml(s) + '</li>')
+      .join('');
+
+    strategyContent.innerHTML = `
+      <p class="text-sm text-gray-600 mb-4">Your next generated session will be specifically tuned to pressure-test these weaknesses.</p>
+      <ul class="text-sm text-gray-800 flex flex-col gap-2 mb-4 list-disc pl-4">
+        ${stratList}
+      </ul>
+    `;
+  }
+
+  // Always show the configuration matrix button
+  const btnContainer = document.createElement('div');
+  btnContainer.className = 'flex gap-2 mt-auto';
+  btnContainer.innerHTML = `
       <button class="btn btn--secondary" id="preview-strategy-btn">
         <i data-lucide="eye"></i>
         <span>View Configuration Matrix</span>
       </button>
       <div id="btn-queue-container"></div>
-    </div>
   `;
+  strategyContent.appendChild(btnContainer);
+
   rightCol.appendChild(
     createCard({ title: 'Evaluation Model Calibration', content: strategyContent }),
   );

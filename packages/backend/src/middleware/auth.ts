@@ -1,7 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Request } from 'express';
 
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+// Lazy initialization — avoids crash at module load if env vars not yet set
+let _supabase: SupabaseClient | null = null;
+function getSupabaseClient(): SupabaseClient {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for auth');
+    }
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -23,7 +35,7 @@ export async function extractAuthenticatedUser(
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await getSupabaseClient().auth.getUser(token);
     if (!error && user) {
       return {
         id: user.id,

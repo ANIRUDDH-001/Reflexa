@@ -1,4 +1,5 @@
 import { signInWithGoogle } from '../auth';
+import { showToast } from '../components/toast';
 
 /**
  * Render the login page — full-page centered layout (no sidebar/shell).
@@ -55,6 +56,11 @@ export function renderLogin(container: HTMLElement): void {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[Reflexa] Google sign-in failed:', err);
+      showToast({
+        title: 'Sign-In Failed',
+        message: 'Could not sign in with Google. Please try again.',
+        type: 'error',
+      });
       btn.classList.remove('btn--loading');
       btn.removeAttribute('disabled');
     }
