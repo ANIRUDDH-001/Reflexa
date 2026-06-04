@@ -745,7 +745,7 @@ export async function renderAnalysis(
 
   // Always show the configuration matrix button
   const btnContainer = document.createElement('div');
-  btnContainer.className = 'flex gap-2 mt-auto';
+  btnContainer.className = 'flex flex-wrap gap-2 mt-4';
   btnContainer.innerHTML = `
       <button class="btn btn--secondary" id="preview-strategy-btn">
         <i data-lucide="eye"></i>
