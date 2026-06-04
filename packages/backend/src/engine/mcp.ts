@@ -15,8 +15,8 @@ export async function initMcpClient(): Promise<Client> {
   logger.info('Initializing Phoenix MCP Client...');
 
   transport = new StdioClientTransport({
-    command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    args: ['--yes', '@arizeai/phoenix-mcp'],
+    command: process.platform === 'win32' ? 'node.exe' : 'node',
+    args: ['./node_modules/@arizeai/phoenix-mcp/build/index.js'],
     env: {
       ...process.env,
       PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',

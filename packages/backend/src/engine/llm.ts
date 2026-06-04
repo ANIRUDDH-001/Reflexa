@@ -243,105 +243,143 @@ export async function* processTurnStream(
     parts: [{ text: event.payload?.text || '' }],
   }));
 
-  for (const modelId of MODELS) {
-    try {
-      const chat = ai.chats.create({
-        model: modelId,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-          responseMimeType: 'application/json',
-          responseSchema,
+  const agentSpan = tracer.startSpan('processTurnStream', {
+    attributes: {
+      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'AGENT',
+      'session.id': state.id,
+    },
+  });
+
+  try {
+    for (const modelId of MODELS) {
+      const llmSpan = tracer.startSpan('gemini_chat_stream', {
+        attributes: {
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
+          'session.id': state.id,
+          [SemanticConventions.LLM_MODEL_NAME]: modelId,
         },
-        history,
       });
 
-      // Capture traceId from the active span BEFORE streaming starts
-      const activeSpan = trace.getActiveSpan();
-      const traceId = activeSpan?.spanContext().traceId ?? 'unknown';
-
-      // Add a 15-second timeout per model attempt
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-
       try {
-        const stream = await chat.sendMessageStream({
-          message: userMessage,
+        if (Array.isArray(history)) {
+          history.forEach((msg, idx) => {
+            llmSpan.setAttribute(
+              `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.role`,
+              msg.role ?? 'user',
+            );
+            llmSpan.setAttribute(
+              `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.content`,
+              JSON.stringify(msg.parts || msg),
+            );
+          });
+        }
+
+        const chat = ai.chats.create({
+          model: modelId,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+          history,
         });
 
-        let fullText = '';
-        let streamedMessageLength = 0;
+        const traceId = agentSpan.spanContext().traceId;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
 
-        for await (const chunk of stream) {
-          if (clientSignal?.aborted) {
-            logger.info(
-              { sessionId: state.id },
-              '[stream] Client disconnected, aborting generation loop',
-            );
-            throw new Error('Client disconnected');
-          }
-          if (controller.signal.aborted) throw new Error('Model timeout after 15s');
-          const token = chunk.text ?? '';
-          if (token) {
-            fullText += token;
+        try {
+          const stream = await chat.sendMessageStream({
+            message: userMessage,
+          });
 
-            const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
-            if (match) {
-              const extractedText = match[1];
-              if (extractedText.length > streamedMessageLength) {
-                const newToken = extractedText.substring(streamedMessageLength);
-                const unescapedToken = newToken
-                  .replace(/\\n/g, '\n')
-                  .replace(/\\"/g, '"')
-                  .replace(/\\\\/g, '\\');
-                yield { type: 'token', text: unescapedToken };
-                streamedMessageLength = extractedText.length;
+          let fullText = '';
+          let streamedMessageLength = 0;
+
+          for await (const chunk of stream) {
+            if (clientSignal?.aborted) {
+              logger.info(
+                { sessionId: state.id },
+                '[stream] Client disconnected, aborting generation loop',
+              );
+              throw new Error('Client disconnected');
+            }
+            if (controller.signal.aborted) throw new Error('Model timeout after 15s');
+            const token = chunk.text ?? '';
+            if (token) {
+              fullText += token;
+
+              const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
+              if (match) {
+                const extractedText = match[1];
+                if (extractedText.length > streamedMessageLength) {
+                  const newToken = extractedText.substring(streamedMessageLength);
+                  const unescapedToken = newToken
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\"/g, '"')
+                    .replace(/\\\\/g, '\\');
+                  yield { type: 'token', text: unescapedToken };
+                  streamedMessageLength = extractedText.length;
+                }
               }
             }
           }
-        }
 
-        // Extract clean agentMessage to verify it exists
-        let extractedMessage = '';
-        try {
-          const parsed = JSON.parse(fullText);
-          extractedMessage = parsed.agentMessage ?? '';
-        } catch {
-          // JSON.parse failed — try regex as last resort
-          const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-          extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
-          logger.warn(
-            { sessionId: state.id },
-            '[stream] Could not parse structured response — using regex fallback',
-          );
-        }
+          let extractedMessage = '';
+          try {
+            const parsed = JSON.parse(fullText);
+            extractedMessage = parsed.agentMessage ?? '';
+          } catch {
+            const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
+            logger.warn(
+              { sessionId: state.id },
+              '[stream] Could not parse structured response — using regex fallback',
+            );
+          }
 
-        if (!extractedMessage) {
-          logger.error(
-            { sessionId: state.id, fullText: fullText.slice(0, 200) },
-            '[stream] Empty agentMessage after extraction',
+          if (!extractedMessage) {
+            logger.error(
+              { sessionId: state.id, fullText: fullText.slice(0, 200) },
+              '[stream] Empty agentMessage after extraction',
+            );
+            yield { type: 'error', message: 'AI returned an empty response. Please try again.' };
+            llmSpan.end();
+            return;
+          }
+
+          llmSpan.setAttribute(
+            `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.role`,
+            'model',
           );
-          yield { type: 'error', message: 'AI returned an empty response. Please try again.' };
+          llmSpan.setAttribute(
+            `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.content`,
+            fullText,
+          );
+
+          yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
+          llmSpan.end();
           return;
+        } finally {
+          clearTimeout(timeout);
         }
-
-        yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
-        return; // Success — stop trying fallback models
-      } finally {
-        clearTimeout(timeout);
+      } catch (err) {
+        llmSpan.recordException(err as Error);
+        llmSpan.end();
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
+        continue;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Fallback silently for any error (e.g. 503, 429, quota, 500, timeout)
-      logger.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
-      continue;
     }
-  }
 
-  yield {
-    type: 'error',
-    message: 'All fallback models exhausted or unavailable — no response generated.',
-  };
+    throw new Error('All fallback models failed.');
+  } catch (e) {
+    agentSpan.recordException(e as Error);
+    throw e;
+  } finally {
+    agentSpan.end();
+  }
 }
 
 export interface EvaluationResultData {
