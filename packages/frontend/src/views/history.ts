@@ -32,7 +32,10 @@ export async function renderHistory(container: HTMLElement): Promise<void> {
       .map((s: any) => {
         const date = escapeHtml(new Date(s.startedAt).toLocaleString());
         const role = escapeHtml(s.config?.role || 'Engineer');
-        const scoreVal = s.evaluation?.rubric?.overall || s.evaluation?.score;
+        const scoreVal =
+          s.evaluation?.candidateRubric?.overall ??
+          s.evaluation?.rubric?.overall ??
+          s.evaluation?.score;
         const score = scoreVal !== undefined ? escapeHtml(scoreVal + '%') : 'Pending';
         const statusBadge =
           s.status === 'completed'

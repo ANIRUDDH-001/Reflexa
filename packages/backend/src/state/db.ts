@@ -156,8 +156,7 @@ export async function getSession(id: string): Promise<BackendSessionState | null
   const { data, error } = await db().from('sessions').select('*').eq('id', id).maybeSingle();
 
   if (error) {
-    console.error('[db] getSession error:', error.message);
-    return null;
+    throw new Error(`[db] getSession error: ${error.message}`);
   }
   if (!data) return null;
 
@@ -191,8 +190,7 @@ export async function getHistorySessions(userId: string): Promise<
     .order('started_at', { ascending: false });
 
   if (error) {
-    console.error('[db] getHistorySessions error:', error.message);
-    return [];
+    throw new Error(`[db] getHistorySessions error: ${error.message}`);
   }
 
   return (data ?? []).map((r) => {

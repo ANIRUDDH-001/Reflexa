@@ -14,8 +14,24 @@ vi.mock('./engine/llm', () => ({
     };
   }),
   generateEvaluation: vi.fn().mockResolvedValue({
-    rubric: { overall: 70 },
+    rubric: {
+      overall: 70,
+      relevance: 70,
+      depth: 70,
+      clarity: 70,
+      adaptability: 70,
+      pacing: 70,
+      opportunityCoverage: 70,
+    },
+    candidateRubric: {
+      overall: 65,
+      technicalAccuracy: 68,
+      communicationClarity: 70,
+      problemSolving: 60,
+      depthOfKnowledge: 62,
+    },
     summary: 'ok',
+    candidateSummary: 'Candidate performed adequately',
     weakTurns: [],
     strategyOverrides: [],
     traceId: 'b'.repeat(32),
@@ -28,7 +44,7 @@ vi.mock('./engine/introspection', () => ({
     whyItFailed: 'test',
     whatToDoNextTime: 'test',
     whatToAvoidNextTime: 'test',
-    updatedAt: new Date().toISOString(),
+    newRules: ['Continue evaluating normally.'],
   }),
 }));
 

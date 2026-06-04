@@ -33,7 +33,20 @@ export function sanitiseHtml(value: unknown): string {
   template.innerHTML = html;
 
   // Walk the DOM tree and remove disallowed elements and attributes
-  const allowedTags = new Set(['p', 'b', 'br', 'span', 'strong', 'em']);
+  const allowedTags = new Set([
+    'p',
+    'b',
+    'br',
+    'span',
+    'strong',
+    'em',
+    'div',
+    'ul',
+    'li',
+    'code',
+    'pre',
+  ]);
+  const allowedAttrs = new Set(['style']); // Allow style for trace formatting (bg colors, padding)
   const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
 
   const toRemove: Element[] = [];
@@ -42,8 +55,12 @@ export function sanitiseHtml(value: unknown): string {
     if (!allowedTags.has(node.tagName.toLowerCase())) {
       toRemove.push(node);
     } else {
-      // Remove all attributes from allowed tags
-      Array.from(node.attributes).forEach((attr) => node!.removeAttribute(attr.name));
+      // Remove disallowed attributes from allowed tags
+      Array.from(node.attributes).forEach((attr) => {
+        if (!allowedAttrs.has(attr.name.toLowerCase())) {
+          node!.removeAttribute(attr.name);
+        }
+      });
     }
     node = walker.nextNode() as Element | null;
   }

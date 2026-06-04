@@ -6,7 +6,7 @@ vi.mock('@google/genai', () => ({
   GoogleGenAI: vi.fn().mockImplementation(() => ({
     models: {
       generateContent: vi.fn().mockResolvedValue({
-        text: '{"rubric":{"overall":99},"summary":"","weakTurns":[],"strategyOverrides":[]}',
+        text: '{"rubric":{"overall":99,"relevance":90,"depth":85,"clarity":95,"adaptability":88,"pacing":92,"opportunityCoverage":80},"candidateRubric":{"overall":85,"technicalAccuracy":82,"communicationClarity":90,"problemSolving":78,"depthOfKnowledge":88},"summary":"Test summary","candidateSummary":"Candidate performed well","weakTurns":[],"strategyOverrides":[]}',
       }),
     },
   })),
@@ -40,6 +40,13 @@ describe('generateEvaluation — minimal input guard', () => {
     expect(result.rubric.adaptability).toBe(0);
     expect(result.rubric.pacing).toBe(0);
     expect(result.rubric.opportunityCoverage).toBe(0);
+    // Candidate rubric must also be zero for abandoned sessions
+    expect(result.candidateRubric.overall).toBe(0);
+    expect(result.candidateRubric.technicalAccuracy).toBe(0);
+    expect(result.candidateRubric.communicationClarity).toBe(0);
+    expect(result.candidateRubric.problemSolving).toBe(0);
+    expect(result.candidateRubric.depthOfKnowledge).toBe(0);
+    expect(result.candidateSummary).toBeDefined();
     expect(result.summary).toContain('abandoned');
     expect(result.strategyOverrides.length).toBeGreaterThan(0);
     // LLM must NOT have been called
@@ -79,7 +86,15 @@ describe('generateEvaluation — minimal input guard', () => {
           pacing: 70,
           opportunityCoverage: 62,
         },
+        candidateRubric: {
+          overall: 68,
+          technicalAccuracy: 72,
+          communicationClarity: 75,
+          problemSolving: 60,
+          depthOfKnowledge: 65,
+        },
         summary: 'Good session',
+        candidateSummary: 'Candidate showed solid understanding',
         weakTurns: [],
         strategyOverrides: [],
       }),

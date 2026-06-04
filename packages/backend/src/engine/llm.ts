@@ -74,7 +74,13 @@ const responseSchema: Schema = {
       description: "The chosen next action: 'asked_question', 'probed', 'hinted', or 'summarized'",
     },
   },
-  required: ['agentMessage', 'candidateAssessment', 'statusMetadata', 'nextActionIndicator'],
+  required: [
+    'agentMessage',
+    'candidateAssessment',
+    'statusMetadata',
+    'nextActionIndicator',
+    'scoreHints',
+  ],
 };
 
 export interface CandidateAssessment {
@@ -170,7 +176,22 @@ export async function processTurn(
 
                   if (!rawText) throw new Error('Empty response from LLM');
                   const capturedTraceId = agentSpan.spanContext().traceId;
-                  return { ...JSON.parse(rawText), traceId: capturedTraceId };
+                  const parsed = JSON.parse(rawText);
+                  // Defensive validation — ensure all fields exist with correct types
+                  const result: ProcessTurnResult = {
+                    agentMessage: parsed.agentMessage || '',
+                    candidateAssessment: parsed.candidateAssessment || {
+                      depthSignal: 'shallow',
+                      topicCoverage: 0,
+                      shouldTransition: false,
+                      observedWeakness: '',
+                    },
+                    statusMetadata: parsed.statusMetadata || 'in_progress',
+                    scoreHints: typeof parsed.scoreHints === 'number' ? parsed.scoreHints : 50,
+                    nextActionIndicator: parsed.nextActionIndicator || 'asked_question',
+                    traceId: capturedTraceId,
+                  };
+                  return result;
                 } catch (err) {
                   llmSpan.recordException(err as Error);
                   throw err;
@@ -616,7 +637,7 @@ export async function generateEvaluation(
         // ── END EARLY RETURN ──────────────────────────────────────────────
 
         const ai = new GoogleGenAI({
-          apiKey: process.env.GOOGLE_API_KEY || '',
+          apiKey: getGoogleApiKey(),
         });
 
         const traceText = traceData
@@ -721,8 +742,39 @@ export async function generateEvaluation(
 
                   if (!rawText) throw new Error('Empty response from LLM');
 
-                  const result = JSON.parse(rawText);
+                  const parsed = JSON.parse(rawText);
                   const traceId = evalSpan.spanContext().traceId;
+
+                  // Defensive validation — ensure all required evaluation fields exist
+                  const zeroRubric = {
+                    overall: 0,
+                    relevance: 0,
+                    depth: 0,
+                    clarity: 0,
+                    adaptability: 0,
+                    pacing: 0,
+                    opportunityCoverage: 0,
+                  };
+                  const zeroCandRubric = {
+                    overall: 0,
+                    technicalAccuracy: 0,
+                    communicationClarity: 0,
+                    problemSolving: 0,
+                    depthOfKnowledge: 0,
+                  };
+                  const result = {
+                    rubric: parsed.rubric ? { ...zeroRubric, ...parsed.rubric } : zeroRubric,
+                    candidateRubric: parsed.candidateRubric
+                      ? { ...zeroCandRubric, ...parsed.candidateRubric }
+                      : zeroCandRubric,
+                    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+                    candidateSummary:
+                      typeof parsed.candidateSummary === 'string' ? parsed.candidateSummary : '',
+                    weakTurns: Array.isArray(parsed.weakTurns) ? parsed.weakTurns : [],
+                    strategyOverrides: Array.isArray(parsed.strategyOverrides)
+                      ? parsed.strategyOverrides
+                      : [],
+                  };
 
                   evalSpan.setAttributes({
                     'evaluation.overall_score': result.rubric?.overall ?? 0,

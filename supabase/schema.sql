@@ -8,21 +8,25 @@
 -- Stores interview session state, trace, and evaluation results
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sessions (
-  id                  TEXT PRIMARY KEY,
-  user_id             TEXT NOT NULL,
-  status              TEXT NOT NULL DEFAULT 'active',
-  interview_phase     TEXT NOT NULL DEFAULT 'intro',
-  started_at          TEXT NOT NULL,
-  ended_at            TEXT,
-  config              JSONB NOT NULL,
-  trace               JSONB NOT NULL DEFAULT '[]',
-  evaluation          JSONB,
-  eval_trace_id       TEXT,
-  strategy_version    TEXT,
-  strategy_update     JSONB,
-  turn_count          INTEGER NOT NULL DEFAULT 0,
-  active_strategy_rules JSONB NOT NULL DEFAULT '[]',
-  last_agent_action   TEXT
+  id                    TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id               TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'in_progress'
+    CHECK (status IN ('pending', 'in_progress', 'completed', 'abandoned')),
+  interview_phase       TEXT NOT NULL DEFAULT 'intro'
+    CHECK (interview_phase IN ('intro', 'exploration', 'deep_dive', 'closing')),
+  started_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at              TIMESTAMPTZ,
+  config                JSONB NOT NULL DEFAULT '{}'::jsonb,
+  trace                 JSONB NOT NULL DEFAULT '[]'::jsonb,
+  evaluation            JSONB,
+  eval_trace_id         TEXT,
+  strategy_version      TEXT NOT NULL DEFAULT 'v1.0.0',
+  strategy_update       JSONB,
+  turn_count            INTEGER NOT NULL DEFAULT 0 CHECK (turn_count >= 0),
+  active_strategy_rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_agent_action     TEXT
 );
 
 -- Index for fast user session lookup
@@ -35,14 +39,19 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id
 -- Used to improve subsequent sessions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS strategies (
-  version         TEXT PRIMARY KEY,
-  rules           JSONB NOT NULL DEFAULT '[]',
-  created_at      TEXT NOT NULL
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  version         TEXT NOT NULL UNIQUE,
+  rules           JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  user_id         TEXT  -- NULL = global strategy, non-NULL = per-user
 );
 
 -- Index for getLatestStrategy()
 CREATE INDEX IF NOT EXISTS idx_strategies_created_at
   ON strategies (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_strategies_user_id
+  ON strategies (user_id, created_at DESC);
 
 -- ============================================================
 -- ROW-LEVEL SECURITY

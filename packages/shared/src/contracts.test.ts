@@ -3,18 +3,29 @@ import { APIContracts } from './contracts';
 
 describe('contracts', () => {
   describe('APIContracts.HealthResponse', () => {
-    it('accepts { status: "ok", ts: "..." }', () => {
-      const valid = { status: 'ok', ts: '2023-10-10T10:00:00Z' };
+    it('accepts valid health response', () => {
+      const valid = {
+        status: 'ok',
+        service: 'reflexa-backend',
+        timestamp: '2023-10-10T10:00:00Z',
+        version: '1.0.0',
+      };
       expect(APIContracts.HealthResponse.safeParse(valid).success).toBe(true);
     });
 
-    it('rejects missing ts', () => {
+    it('rejects missing fields', () => {
       const invalid = { status: 'ok' };
       expect(APIContracts.HealthResponse.safeParse(invalid).success).toBe(false);
     });
 
     it('rejects extra fields (strict mode)', () => {
-      const invalid = { status: 'ok', ts: '2023-10-10T10:00:00Z', extra: true };
+      const invalid = {
+        status: 'ok',
+        service: 'reflexa-backend',
+        timestamp: '2023-10-10T10:00:00Z',
+        version: '1.0.0',
+        extra: true,
+      };
       expect(APIContracts.HealthResponse.safeParse(invalid).success).toBe(false);
     });
   });

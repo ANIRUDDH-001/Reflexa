@@ -33,10 +33,12 @@ export async function extractAuthenticatedUser(
     }
   }
 
-  // Fallback to X-User-Id header (for development/testing)
-  const headerUserId = req.headers['x-user-id'] as string | undefined;
-  if (headerUserId) {
-    return { id: headerUserId };
+  // Fallback to X-User-Id header (for development/testing ONLY)
+  if (process.env.NODE_ENV !== 'production') {
+    const headerUserId = req.headers['x-user-id'] as string | undefined;
+    if (headerUserId) {
+      return { id: headerUserId };
+    }
   }
 
   return null;

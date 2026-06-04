@@ -193,7 +193,22 @@ Example newRules:
           );
         }
 
-        return parsed as StrategyUpdateResult;
+        // Validate the parsed result instead of unsafe cast
+        const obj = parsed as Record<string, unknown>;
+        const result: StrategyUpdateResult = {
+          whatFailed: typeof obj.whatFailed === 'string' ? obj.whatFailed : 'Unknown',
+          whyItFailed: typeof obj.whyItFailed === 'string' ? obj.whyItFailed : 'Unknown',
+          whatToDoNextTime:
+            typeof obj.whatToDoNextTime === 'string' ? obj.whatToDoNextTime : 'No recommendation',
+          whatToAvoidNextTime:
+            typeof obj.whatToAvoidNextTime === 'string'
+              ? obj.whatToAvoidNextTime
+              : 'No recommendation',
+          newRules: Array.isArray(obj.newRules)
+            ? obj.newRules.filter((r): r is string => typeof r === 'string')
+            : ['Continue evaluating normally.'],
+        };
+        return result;
       } catch (err) {
         span.recordException(err as Error);
         logger.error({ err }, '[introspection] runIntrospection failed');

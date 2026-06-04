@@ -46,7 +46,29 @@ vi.mock('./middleware/auth', () => ({
 
 vi.mock('./engine/llm', () => ({
   processTurn: vi.fn().mockResolvedValue({ agentMessage: 'Hello', traceId: '123' }),
-  generateEvaluation: vi.fn().mockResolvedValue({ rubric: { overall: 50 }, summary: 'test' }),
+  generateEvaluation: vi.fn().mockResolvedValue({
+    rubric: {
+      overall: 50,
+      relevance: 50,
+      depth: 50,
+      clarity: 50,
+      adaptability: 50,
+      pacing: 50,
+      opportunityCoverage: 50,
+    },
+    candidateRubric: {
+      overall: 45,
+      technicalAccuracy: 50,
+      communicationClarity: 40,
+      problemSolving: 45,
+      depthOfKnowledge: 50,
+    },
+    summary: 'test',
+    candidateSummary: 'test candidate summary',
+    weakTurns: [],
+    strategyOverrides: [],
+    traceId: 'c'.repeat(32),
+  }),
 }));
 
 const TEST_USER_ID = 'test-user-integration';

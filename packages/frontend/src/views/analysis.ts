@@ -22,6 +22,7 @@ export async function renderAnalysis(
   params?: Record<string, string>,
 ): Promise<void> {
   currentSessionId = params?.id || null;
+  isComparing = false; // Reset comparison state on navigation
   // Safe: static text
   container.innerHTML =
     '<div class="p-8 text-center text-gray-500">Loading analysis telemetry...</div>';
@@ -135,19 +136,9 @@ export async function renderAnalysis(
         );
       }
 
-      const targetContainer = document.getElementById('btn-target-container');
-      if (targetContainer) {
-        targetContainer.appendChild(
-          createButton({
-            label: 'Target Weaknesses',
-            variant: 'primary',
-            icon: 'dumbbell',
-            onClick: () => {
-              window.location.hash = `#/study/${currentSessionId}`;
-            },
-          }),
-        );
-      }
+      // TODO: Phase 4 — Re-enable when the study view is implemented
+      // const targetContainer = document.getElementById('btn-target-container');
+      // if (targetContainer) { ... }
     }, 0);
   };
 
@@ -335,6 +326,46 @@ export async function renderAnalysis(
 
   const weakTurnsCardContent = document.createElement('div');
   weakTurnsCardContent.className = 'flex flex-col';
+
+  // ── Modal (must be created BEFORE createAccordion which references openModal) ──
+  const modalOverlay = document.createElement('div');
+  modalOverlay.className = 'modal-overlay';
+  modalOverlay.innerHTML = `
+    <div class="modal-container">
+      <div class="flex justify-between items-center mb-4 border-b pb-2">
+        <h3 class="text-lg font-semibold" id="modal-title">Title</h3>
+        <button class="text-gray-400 hover:text-gray-600 transition-colors" id="modal-close">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  `;
+  container.appendChild(modalOverlay);
+
+  const openModal = (title: string, htmlContent: string) => {
+    document.getElementById('modal-title')!.textContent = title;
+    document.getElementById('modal-body')!.innerHTML = sanitiseHtml(htmlContent);
+    modalOverlay.classList.add('modal-overlay--open');
+    refreshIcons();
+  };
+
+  const closeModal = () => {
+    modalOverlay.classList.remove('modal-overlay--open');
+  };
+
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+  setTimeout(() => {
+    document.getElementById('modal-close')?.addEventListener('click', closeModal);
+  }, 0);
+
+  // Escape key closes modal (accessibility)
+  const handleEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeModal();
+  };
+  document.addEventListener('keydown', handleEscape);
 
   const createAccordion = (
     opts: { label: string; variant?: 'error' | 'warning' | 'info' },
@@ -552,42 +583,6 @@ export async function renderAnalysis(
         }),
       );
     }
-  }, 0);
-
-  // Modal Container
-  const modalOverlay = document.createElement('div');
-  modalOverlay.className = 'modal-overlay';
-  // Safe: static HTML shell
-  modalOverlay.innerHTML = `
-    <div class="modal-container">
-      <div class="flex justify-between items-center mb-4 border-b pb-2">
-        <h3 class="text-lg font-semibold" id="modal-title">Title</h3>
-        <button class="text-gray-400 hover:text-gray-600 transition-colors" id="modal-close">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-      <div id="modal-body"></div>
-    </div>
-  `;
-  container.appendChild(modalOverlay);
-
-  const openModal = (title: string, htmlContent: string) => {
-    document.getElementById('modal-title')!.textContent = title; // textContent is always safe
-    // Defence-in-depth: sanitise even if caller already sanitised
-    document.getElementById('modal-body')!.innerHTML = sanitiseHtml(htmlContent);
-    modalOverlay.classList.add('modal-overlay--open');
-    refreshIcons();
-  };
-
-  const closeModal = () => {
-    modalOverlay.classList.remove('modal-overlay--open');
-  };
-
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
-  setTimeout(() => {
-    document.getElementById('modal-close')?.addEventListener('click', closeModal);
   }, 0);
 
   refreshIcons();

@@ -63,6 +63,8 @@ async function run() {
 
     if (finalSession.session?.evaluation?.rubric?.overall === 0) console.log('✓ Evaluation floor: overall=0 for hi-only session');
     else { console.error(`✗ Evaluation floor BROKEN: overall=${finalSession.session?.evaluation?.rubric?.overall} (expected 0)`); process.exit(1); }
+    if (finalSession.session?.evaluation?.candidateRubric?.overall === 0) console.log('✓ Candidate rubric floor: overall=0');
+    else { console.error(`✗ Candidate rubric floor BROKEN: overall=${finalSession.session?.evaluation?.candidateRubric?.overall} (expected 0)`); process.exit(1); }
 
     // Strategy endpoint
     const strategy = await fetch('http://localhost:8000/strategy/latest').then(r => r.json());

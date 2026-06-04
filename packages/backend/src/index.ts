@@ -360,8 +360,8 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
 
     return res.json(responsePayload);
   } catch (error: unknown) {
-    const err = error instanceof Error ? error.message : 'Unknown error';
-    return res.status(500).json({ error: 'Failed to process turn', details: err });
+    logger.error({ err: error }, 'Failed to process turn');
+    return res.status(500).json({ error: 'Failed to process turn' });
   }
 });
 
@@ -556,7 +556,11 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       // Continue — the session evaluation is more important than the strategy version
     }
 
-    evaluation.strategyOverrides = introspection.newRules;
+    // Merge evaluation-suggested overrides with introspection-generated rules
+    evaluation.strategyOverrides = [
+      ...(evaluation.strategyOverrides || []),
+      ...(introspection.newRules || []),
+    ];
 
     // Save the evaluation and strategy update into session state
     session.evaluation = evaluation;
@@ -615,8 +619,8 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
     return res.json(responsePayload);
   } catch (error: unknown) {
-    const err = error instanceof Error ? error.message : 'Unknown error';
-    return res.status(500).json({ error: 'Failed to generate evaluation', details: err });
+    logger.error({ err: error }, 'Failed to generate evaluation');
+    return res.status(500).json({ error: 'Failed to generate evaluation' });
   }
 });
 
@@ -630,8 +634,8 @@ app.get('/sessions', async (req: Request, res: Response) => {
     const history = await getHistorySessions(userId);
     return res.json({ sessions: history });
   } catch (error: unknown) {
-    const err = error instanceof Error ? error.message : 'Unknown error';
-    return res.status(500).json({ error: 'Failed to fetch history', details: err });
+    logger.error({ err: error }, 'Failed to fetch history');
+    return res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
 

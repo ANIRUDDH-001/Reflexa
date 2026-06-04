@@ -1,7 +1,8 @@
 import { BackendSessionState } from './state/types';
 
 export function updateSessionPhase(session: BackendSessionState): void {
-  const timeLimit = parseInt(session.config.timeLimit || '20', 10);
+  const raw = parseInt(session.config.timeLimit || '20', 10);
+  const timeLimit = Number.isNaN(raw) ? 20 : raw;
   const estimatedTurns = Math.max(4, Math.floor(timeLimit / 2.5));
 
   // Four equal-ish phase bands, scaled to session length

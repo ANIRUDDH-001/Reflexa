@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import { InterviewSession, Answer, EvaluationResult } from './schemas';
 
-export const HealthResponse = z.object({ status: z.literal('ok'), ts: z.string() }).strict();
+export const HealthResponse = z
+  .object({
+    status: z.literal('ok'),
+    service: z.string(),
+    timestamp: z.string(),
+    version: z.string(),
+  })
+  .strict();
 
 export const SessionConfig = z
   .object({

@@ -1,6 +1,7 @@
 import { getUser, signOut } from './auth';
 import { refreshIcons } from './lucide';
 import { navigate, getCurrentRoute } from './router';
+import { escapeHtml } from './utils/dom';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Overview', icon: 'layout-dashboard' },
@@ -128,7 +129,9 @@ export function createShell(root: HTMLElement): HTMLElement {
       if (nameEl) nameEl.textContent = meta?.full_name || meta?.name || user.email || 'User';
       if (emailEl) emailEl.textContent = user.email || '';
       if (avatarEl && meta?.avatar_url) {
-        avatarEl.innerHTML = `<img src="${meta.avatar_url}" alt="" class="sidebar__avatar-img" />`;
+        avatarEl.innerHTML = `<img src="${escapeHtml(
+          meta.avatar_url,
+        )}" alt="" class="sidebar__avatar-img" />`;
       }
     })
     .catch(() => {
@@ -207,13 +210,18 @@ export function createShell(root: HTMLElement): HTMLElement {
     const current = getCurrentRoute();
     nav.querySelectorAll('.sidebar__nav-item').forEach((btn) => {
       const el = btn as HTMLElement;
-      const isActive = el.dataset.path === current;
+      const path = el.dataset.path || '';
+      // Match exact path OR parameterized child routes (e.g. /analysis matches /analysis/abc123)
+      const isActive = current === path || (path !== '/' && current.startsWith(path + '/'));
       el.classList.toggle('sidebar__nav-item--active', isActive);
       el.setAttribute('aria-current', isActive ? 'page' : 'false');
     });
 
-    // Update page title
-    const activeItem = NAV_ITEMS.find((i) => i.path === current) || NAV_ITEMS[0];
+    // Update page title — match parameterized routes too
+    const activeItem =
+      NAV_ITEMS.find((i) => i.path === current) ||
+      NAV_ITEMS.find((i) => i.path !== '/' && current.startsWith(i.path + '/')) ||
+      NAV_ITEMS[0];
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = activeItem.label;
   };
