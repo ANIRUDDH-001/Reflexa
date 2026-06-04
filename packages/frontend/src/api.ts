@@ -3,7 +3,7 @@
 export const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 import type { SessionConfig, TurnStreamEvent } from '@reflexa/shared';
-import { getAccessToken, getUser } from './auth';
+import { getSession } from './auth';
 
 export let PHOENIX_TRACE_BASE = 'https://app.phoenix.arize.com/traces';
 export function setPhoenixTraceBase(base: string) {
@@ -18,27 +18,19 @@ export function setCurrentUserId(id: string): void {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  // Get JWT access token from Supabase session
-  const token = await getAccessToken();
+  // Get JWT access token and user ID from Supabase session in one call
+  const session = await getSession();
+  const token = session?.access_token;
+  const authUserId = session?.user?.id;
 
   // Get authenticated user ID as fallback X-User-Id
   const authHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
-    'X-User-Id': _userId,
+    'X-User-Id': authUserId || _userId,
   };
 
   if (token) {
     authHeaders['Authorization'] = `Bearer ${token}`;
-  }
-
-  // If we have an authenticated user, prefer their ID for X-User-Id
-  try {
-    const user = await getUser();
-    if (user) {
-      authHeaders['X-User-Id'] = user.id;
-    }
-  } catch {
-    // Fall back to localStorage-based _userId
   }
 
   const response = await fetch(`${API_BASE}${path}`, {
@@ -60,6 +52,10 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 
   return response;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sessionsCache: any = null;
+let _sessionsCacheTime: number = 0;
 
 export const api = {
   async getConfig() {
@@ -83,11 +79,17 @@ export const api = {
     return res.json();
   },
 
-  async getSessions() {
+  async getSessions(forceRefresh = false) {
+    if (!forceRefresh && _sessionsCache && Date.now() - _sessionsCacheTime < 30000) {
+      return _sessionsCache;
+    }
     // userId comes from X-User-Id header via apiFetch
     const res = await apiFetch('/sessions');
     if (!res.ok) throw new Error('Failed to fetch sessions');
-    return res.json();
+    const data = await res.json();
+    _sessionsCache = data;
+    _sessionsCacheTime = Date.now();
+    return data;
   },
 
   async getComparison(id: string) {
@@ -136,10 +138,12 @@ export async function getLatestStrategyInfo(): Promise<{
 export async function* sendTurnStream(
   sessionId: string,
   text: string,
+  signal?: AbortSignal,
 ): AsyncGenerator<TurnStreamEvent> {
   const response = await apiFetch(`/session/${sessionId}/turn/stream`, {
     method: 'POST',
     body: JSON.stringify({ text }),
+    signal,
   });
 
   if (!response.ok) {

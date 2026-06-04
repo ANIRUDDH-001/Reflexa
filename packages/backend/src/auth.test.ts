@@ -134,7 +134,7 @@ describe('Authorization: GET /session/:id', () => {
   it('returns 404 for a non-existent session', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (getSession as any).mockResolvedValue(null);
-    const res = await request(app).get(`/session/nonexistent-id`).set('X-User-Id', OWNER_ID);
+    const res = await request(app).get(`/session/nonexistent-id`).set('X-User-Id', 'some-user');
     expect(res.status).toBe(404);
   });
 });

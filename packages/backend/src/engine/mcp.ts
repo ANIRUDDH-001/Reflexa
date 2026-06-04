@@ -63,6 +63,8 @@ export async function shutdownMcpClient(): Promise<void> {
   logger.info('[mcp] MCP client shut down');
 }
 
+let _initPromise: Promise<Client> | null = null;
+
 export async function getOrInitMcpClient(): Promise<Client> {
   if (mcpClient) {
     try {
@@ -77,19 +79,23 @@ export async function getOrInitMcpClient(): Promise<Client> {
       }
       mcpClient = null;
       transport = null;
+      _initPromise = null;
     }
   }
 
-  // Fresh init
-  try {
-    return await initMcpClient();
-  } catch (err) {
-    throw new Error(
-      `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
+  // Promise-based lock prevents concurrent init race condition
+  if (!_initPromise) {
+    _initPromise = initMcpClient().catch((err) => {
+      _initPromise = null;
+      throw new Error(
+        `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
   }
+
+  return _initPromise;
 }
 
 function mcpSchemaToGeminiSchema(jsonSchema: Record<string, unknown>): Schema {

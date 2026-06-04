@@ -68,6 +68,19 @@ export async function renderHistory(container: HTMLElement): Promise<void> {
     `;
     refreshIcons();
   } catch (err) {
-    container.innerHTML = '<div class="p-8 text-center text-error">Failed to load history</div>';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state__icon">
+          <i data-lucide="alert-circle"></i>
+        </div>
+        <h3 class="empty-state__title">No Sessions Available</h3>
+        <p class="empty-state__description mb-4">Could not load session history. Please try again later.</p>
+        <button class="btn btn--primary" onclick="window.location.hash='#/session'">
+          <i data-lucide="plus"></i>
+          <span>Initialize Session</span>
+        </button>
+      </div>
+    `;
+    refreshIcons();
   }
 }

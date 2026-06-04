@@ -1459,6 +1459,8 @@ pre {
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .message--ai .message__bubble {

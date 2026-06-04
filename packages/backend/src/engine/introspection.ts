@@ -70,144 +70,159 @@ Example newRules:
 - "For behavioral interviews, always ask for a specific past example — reject hypothetical answers"
 `;
 
-        const chat = ai.chats.create({
-          model: 'gemini-2.5-flash',
-          config: {
-            systemInstruction,
-            tools: [{ functionDeclarations: tools }],
-            temperature: 0.3,
-          },
-        });
+        let result: StrategyUpdateResult | null = null;
+        let lastError: Error | null = null;
 
-        // ── Task 5: include Phoenix project name explicitly ───────────────
-        const introspectionContext =
-          `Phoenix project name: "${PHOENIX_PROJECT}"\n` +
-          `Session ID to introspect: "${sessionId}"\n` +
-          `Session evaluation overall score: ${evalScore ?? 'unknown'}\n\n` +
-          `Use the Phoenix MCP tools to retrieve the traces and evaluation scores for this session, ` +
-          `then identify the weakest turns and generate a StrategyUpdate to improve future sessions. ` +
-          `Start by calling get_traces with project_name="${PHOENIX_PROJECT}" and filter by the session ID above.`;
+        for (const modelId of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+          try {
+            const chat = ai.chats.create({
+              model: modelId,
+              config: {
+                systemInstruction,
+                tools: [{ functionDeclarations: tools }],
+                temperature: 0.3,
+              },
+            });
 
-        logger.info(`Starting introspection loop for session ${sessionId}...`);
+            // ── Task 5: include Phoenix project name explicitly ───────────────
+            const introspectionContext =
+              `Phoenix project name: "${PHOENIX_PROJECT}"\n` +
+              `Session ID to introspect: "${sessionId}"\n` +
+              `Session evaluation overall score: ${evalScore ?? 'unknown'}\n\n` +
+              `Use the Phoenix MCP tools to retrieve the traces and evaluation scores for this session, ` +
+              `then identify the weakest turns and generate a StrategyUpdate to improve future sessions. ` +
+              `Start by calling get_traces with project_name="${PHOENIX_PROJECT}" and filter by the session ID above.`;
 
-        // ── Task 3: accumulate findings, never lose context ───────────────
-        const findings: string[] = [];
-        let response = await chat.sendMessage({ message: introspectionContext });
+            logger.info(`Starting introspection loop for session ${sessionId}...`);
 
-        for (let i = 0; i < 8; i++) {
-          // Capture any prose the model emitted this turn
-          if (response.text) {
-            findings.push(response.text);
-          }
+            // ── Task 3: accumulate findings, never lose context ───────────────
+            const findings: string[] = [];
+            let response = await chat.sendMessage({ message: introspectionContext });
 
-          const calls = response.functionCalls;
-          if (!calls || calls.length === 0) {
-            // Model has finished reasoning — no more tool calls
-            break;
-          }
+            for (let i = 0; i < 8; i++) {
+              // Capture any prose the model emitted this turn
+              if (response.text) {
+                findings.push(response.text);
+              }
 
-          // Execute each tool call and accumulate results
-          const functionResponses = [];
-          for (const call of calls) {
-            try {
-              logger.info(`Introspection agent calling tool ${call.name}`);
-              const resultText = await callMcpTool(
-                call.name as string,
-                (call.args || {}) as Record<string, unknown>,
-              );
-              findings.push(`[Tool: ${call.name}]\n${resultText}`);
-              functionResponses.push({
-                functionResponse: {
-                  id: call.id as string, // Required for Gemini 3.x
-                  name: call.name as string,
-                  response: { result: resultText },
-                },
-              });
-            } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : String(err);
-              logger.error({ err }, `Tool ${call.name} failed`);
-              findings.push(`[Tool: ${call.name} ERROR]\n${errorMessage}`);
-              functionResponses.push({
-                functionResponse: {
-                  id: call.id as string, // Required for Gemini 3.x
-                  name: call.name as string,
-                  response: { error: errorMessage },
-                },
-              });
+              const calls = response.functionCalls;
+              if (!calls || calls.length === 0) {
+                // Model has finished reasoning — no more tool calls
+                break;
+              }
+
+              // Execute each tool call and accumulate results
+              const functionResponses = [];
+              for (const call of calls) {
+                try {
+                  logger.info(`Introspection agent calling tool ${call.name}`);
+                  const resultText = await callMcpTool(
+                    call.name as string,
+                    (call.args || {}) as Record<string, unknown>,
+                  );
+                  findings.push(`[Tool: ${call.name}]\n${resultText}`);
+                  functionResponses.push({
+                    functionResponse: {
+                      id: call.id as string, // Required for Gemini 3.x
+                      name: call.name as string,
+                      response: { result: resultText },
+                    },
+                  });
+                } catch (err) {
+                  const errorMessage = err instanceof Error ? err.message : String(err);
+                  logger.error({ err }, `Tool ${call.name} failed`);
+                  findings.push(`[Tool: ${call.name} ERROR]\n${errorMessage}`);
+                  functionResponses.push({
+                    functionResponse: {
+                      id: call.id as string, // Required for Gemini 3.x
+                      name: call.name as string,
+                      response: { error: errorMessage },
+                    },
+                  });
+                }
+              }
+
+              response = await chat.sendMessage({ message: functionResponses });
             }
+
+            // Capture any final prose after the last tool result
+            if (response.text) {
+              findings.push(response.text);
+            }
+
+            // ── Synthesise findings into a structured StrategyUpdate ──────────
+            // Use a FRESH chat with the full accumulated context — not just response.text
+            const combinedFindings =
+              findings.length > 0
+                ? findings.join('\n\n---\n\n')
+                : 'The introspection tools returned no data. Generate a conservative strategy update based on the session evaluation scores provided in the original context.';
+
+            const synthesisChat = ai.chats.create({
+              model: modelId,
+              config: {
+                temperature: 0.3,
+                systemInstruction: [
+                  'You are a meta-learning agent.',
+                  'Based on the introspection findings below, produce a valid JSON object with EXACTLY these keys:',
+                  '  whatFailed, whyItFailed, whatToDoNextTime, whatToAvoidNextTime, newRules (array of strings).',
+                  'Output ONLY raw JSON with no markdown fences, no explanation, no preamble.',
+                ].join(' '),
+              },
+            });
+
+            const synthesisResponse = await synthesisChat.sendMessage({
+              message: `Introspection findings:\n\n${combinedFindings}\n\nProduce the StrategyUpdate JSON now.`,
+            });
+
+            const rawJson = synthesisResponse.text?.trim() ?? '';
+            if (!rawJson) {
+              throw new Error(
+                '[introspection] Synthesis model returned empty response — cannot produce StrategyUpdate',
+              );
+            }
+
+            // Strip markdown fences if the model added them despite instructions
+            const cleaned = rawJson
+              .replace(/^```(?:json)?\s*/i, '')
+              .replace(/\s*```$/i, '')
+              .trim();
+
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(cleaned);
+            } catch (err) {
+              throw new Error(
+                `[introspection] Failed to parse StrategyUpdate JSON: ${
+                  err instanceof Error ? err.message : String(err)
+                }\nRaw output was:\n${cleaned}`,
+              );
+            }
+
+            // Validate the parsed result instead of unsafe cast
+            const obj = parsed as Record<string, unknown>;
+            result = {
+              whatFailed: typeof obj.whatFailed === 'string' ? obj.whatFailed : 'Unknown',
+              whyItFailed: typeof obj.whyItFailed === 'string' ? obj.whyItFailed : 'Unknown',
+              whatToDoNextTime:
+                typeof obj.whatToDoNextTime === 'string'
+                  ? obj.whatToDoNextTime
+                  : 'No recommendation',
+              whatToAvoidNextTime:
+                typeof obj.whatToAvoidNextTime === 'string'
+                  ? obj.whatToAvoidNextTime
+                  : 'No recommendation',
+              newRules: Array.isArray(obj.newRules)
+                ? obj.newRules.filter((r): r is string => typeof r === 'string')
+                : ['Continue evaluating normally.'],
+            };
+            break; // Success, exit model loop
+          } catch (err) {
+            lastError = err as Error;
+            logger.warn({ err, modelId }, '[introspection] Model attempt failed, trying next...');
           }
-
-          response = await chat.sendMessage({ message: functionResponses });
         }
 
-        // Capture any final prose after the last tool result
-        if (response.text) {
-          findings.push(response.text);
-        }
-
-        // ── Synthesise findings into a structured StrategyUpdate ──────────
-        // Use a FRESH chat with the full accumulated context — not just response.text
-        const combinedFindings =
-          findings.length > 0
-            ? findings.join('\n\n---\n\n')
-            : 'The introspection tools returned no data. Generate a conservative strategy update based on the session evaluation scores provided in the original context.';
-
-        const synthesisChat = ai.chats.create({
-          model: 'gemini-2.5-flash',
-          config: {
-            temperature: 0.3,
-            systemInstruction: [
-              'You are a meta-learning agent.',
-              'Based on the introspection findings below, produce a valid JSON object with EXACTLY these keys:',
-              '  whatFailed, whyItFailed, whatToDoNextTime, whatToAvoidNextTime, newRules (array of strings).',
-              'Output ONLY raw JSON with no markdown fences, no explanation, no preamble.',
-            ].join(' '),
-          },
-        });
-
-        const synthesisResponse = await synthesisChat.sendMessage({
-          message: `Introspection findings:\n\n${combinedFindings}\n\nProduce the StrategyUpdate JSON now.`,
-        });
-
-        const rawJson = synthesisResponse.text?.trim() ?? '';
-        if (!rawJson) {
-          throw new Error(
-            '[introspection] Synthesis model returned empty response — cannot produce StrategyUpdate',
-          );
-        }
-
-        // Strip markdown fences if the model added them despite instructions
-        const cleaned = rawJson
-          .replace(/^```(?:json)?\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(cleaned);
-        } catch (err) {
-          throw new Error(
-            `[introspection] Failed to parse StrategyUpdate JSON: ${
-              err instanceof Error ? err.message : String(err)
-            }\nRaw output was:\n${cleaned}`,
-          );
-        }
-
-        // Validate the parsed result instead of unsafe cast
-        const obj = parsed as Record<string, unknown>;
-        const result: StrategyUpdateResult = {
-          whatFailed: typeof obj.whatFailed === 'string' ? obj.whatFailed : 'Unknown',
-          whyItFailed: typeof obj.whyItFailed === 'string' ? obj.whyItFailed : 'Unknown',
-          whatToDoNextTime:
-            typeof obj.whatToDoNextTime === 'string' ? obj.whatToDoNextTime : 'No recommendation',
-          whatToAvoidNextTime:
-            typeof obj.whatToAvoidNextTime === 'string'
-              ? obj.whatToAvoidNextTime
-              : 'No recommendation',
-          newRules: Array.isArray(obj.newRules)
-            ? obj.newRules.filter((r): r is string => typeof r === 'string')
-            : ['Continue evaluating normally.'],
-        };
+        if (!result) throw lastError || new Error('All introspection models failed');
         return result;
       } catch (err) {
         span.recordException(err as Error);

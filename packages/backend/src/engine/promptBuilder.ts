@@ -300,8 +300,9 @@ export function buildOpeningMessage(config: {
   role: string | null;
   difficulty: string | null;
 }): string {
-  const role = config.role || 'engineer';
-  const difficulty = config.difficulty || 'mid';
+  const role = sanitiseInput(config.role) || 'engineer';
+  const difficulty = sanitiseInput(config.difficulty) || 'mid';
+  const safeStyle = sanitiseInput(config.style) || '';
 
   const styleOpeners: Record<string, string> = {
     'system-design': `Today we'll be designing a distributed system together. I'll ask you to walk me through architecture decisions, trade-offs, and failure modes. Are you ready to begin?`,
@@ -312,11 +313,11 @@ export function buildOpeningMessage(config: {
   };
 
   const opener =
-    styleOpeners[config.style || ''] ||
+    styleOpeners[safeStyle] ||
     `Today we'll conduct a technical interview covering your engineering background and problem-solving approach. Ready to begin?`;
 
   return `Hello! I'll be your interviewer for this ${
-    config.style || 'technical'
+    safeStyle || 'technical'
   } interview targeting a ${difficulty} ${role} role. ${opener}`;
 }
 

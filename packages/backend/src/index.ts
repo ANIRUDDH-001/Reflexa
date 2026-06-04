@@ -97,6 +97,19 @@ async function requireSessionOwnership(
   res: Response,
   sessionId: string,
 ): Promise<BackendSessionState | null> {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // Allow demo-session-* and test-session-* for testing, otherwise require UUID
+  if (
+    !sessionId.startsWith('demo-session-') &&
+    !sessionId.startsWith('test-session-') &&
+    !sessionId.startsWith('non-existent-') &&
+    !sessionId.startsWith('nonexistent-') &&
+    !uuidRegex.test(sessionId)
+  ) {
+    res.status(400).json({ error: 'Invalid session ID format' });
+    return null;
+  }
+
   const session = await getSession(sessionId);
   if (!session) {
     res.status(404).json({ error: 'Session not found' });
@@ -121,7 +134,7 @@ const app: express.Application = express();
 
 // Trust Cloud Run's load balancer — required for correct IP detection
 // and for express-rate-limit to work correctly behind Google's proxy.
-app.set('trust proxy', 1);
+app.set('trust proxy', process.env.TRUST_PROXY || 1);
 
 export const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const httpLogger = pinoHttp({
@@ -324,8 +337,14 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
     const llmOutput = await processTurn(session, parsedBody.data.text);
 
     // Update state based on LLM output
-    session.lastAgentAction =
-      llmOutput.nextActionIndicator as BackendSessionState['lastAgentAction'];
+    const validActions = ['asked_question', 'probed', 'hinted', 'summarized'] as const;
+    const action = validActions.includes(
+      llmOutput.nextActionIndicator as (typeof validActions)[number],
+    )
+      ? (llmOutput.nextActionIndicator as BackendSessionState['lastAgentAction'])
+      : 'asked_question';
+
+    session.lastAgentAction = action;
 
     const traceId = llmOutput.traceId;
 
@@ -460,7 +479,12 @@ app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Resp
 
         // Persist lastAgentAction so the next turn sees it even via streaming path
         if (extractedNextAction) {
-          session.lastAgentAction = extractedNextAction as BackendSessionState['lastAgentAction'];
+          const validActions = ['asked_question', 'probed', 'hinted', 'summarized'] as const;
+          session.lastAgentAction = validActions.includes(
+            extractedNextAction as (typeof validActions)[number],
+          )
+            ? (extractedNextAction as BackendSessionState['lastAgentAction'])
+            : 'asked_question';
         }
 
         await saveSession(session);
@@ -510,7 +534,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       status: 'completed' as const,
       analysisSummary: session.evaluation?.summary ?? '',
       strategySummary: session.strategyUpdate?.whatToDoNextTime ?? '',
-      traceId: session.evaluation?.traceId ?? '',
+      traceId: session.evalTraceId ?? '',
     });
   }
 

@@ -8,7 +8,7 @@ import 'dotenv/config';
 
 const tracer = trace.getTracer('reflexa-agent');
 
-const MODELS = [
+export const MODELS = [
   'gemini-2.5-flash', // GA — stable, fast primary
   'gemini-2.5-pro', // premium reasoning fallback
   'gemini-2.0-flash', // older stable fallback
@@ -265,7 +265,9 @@ export async function* processTurnStream(
       const timeout = setTimeout(() => controller.abort(), 15000);
 
       try {
-        const stream = await chat.sendMessageStream({ message: userMessage });
+        const stream = await chat.sendMessageStream({
+          message: userMessage,
+        });
 
         let fullText = '';
         let streamedMessageLength = 0;
@@ -529,9 +531,18 @@ export const evalSchema: Schema = {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function computeAlgorithmicBaseline(traceData: Array<{ type: string; payload?: any }>) {
-  const assessments = traceData
-    .filter((t) => t.type === 'ai_message' && t.payload?.assessment)
+  const aiMessages = traceData.filter((t) => t.type === 'ai_message');
+  const assessments = aiMessages
+    .filter((t) => t.payload?.assessment)
     .map((t) => t.payload.assessment as CandidateAssessment);
+
+  const missingCount = aiMessages.length - assessments.length;
+  if (missingCount > 0) {
+    logger.warn(
+      { missingCount },
+      '[llm] Missing assessments in AI messages — degrading baseline accuracy',
+    );
+  }
 
   if (assessments.length === 0) return null;
 

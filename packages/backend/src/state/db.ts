@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import 'dotenv/config';
+import { logger } from '../index';
 import { BackendSessionState } from './types';
 
 // ── Supabase client (service role — bypasses RLS) ──────────────
@@ -26,16 +27,21 @@ function db(): SupabaseClient {
 
 // Map Supabase snake_case row → BackendSessionState (camelCase)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToSession(row: any): BackendSessionState {
-  if (row.evaluation?.rubric) {
+function applyEvaluationShims(evaluation: any) {
+  if (evaluation?.rubric) {
     if (
-      row.evaluation.rubric.opportunityCoverage === undefined &&
-      row.evaluation.rubric.missedOpportunities !== undefined
+      evaluation.rubric.opportunityCoverage === undefined &&
+      evaluation.rubric.missedOpportunities !== undefined
     ) {
-      row.evaluation.rubric.opportunityCoverage = row.evaluation.rubric.missedOpportunities;
-      delete row.evaluation.rubric.missedOpportunities;
+      evaluation.rubric.opportunityCoverage = evaluation.rubric.missedOpportunities;
+      delete evaluation.rubric.missedOpportunities;
     }
   }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToSession(row: any): BackendSessionState {
+  applyEvaluationShims(row.evaluation);
 
   return {
     id: row.id,
@@ -95,7 +101,10 @@ export async function getLatestStrategy(
       .maybeSingle();
 
     if (error) {
-      console.error('[db] getLatestStrategy (user) error:', error.message);
+      logger.warn(
+        { err: error, userId },
+        '[db] getLatestStrategy (user) error, falling through to global',
+      );
       // Fall through to global lookup
     } else if (data) {
       return {
@@ -115,7 +124,7 @@ export async function getLatestStrategy(
     .maybeSingle();
 
   if (error) {
-    console.error('[db] getLatestStrategy (global) error:', error.message);
+    logger.error({ err: error }, '[db] getLatestStrategy (global) error');
     return null;
   }
   if (!data) return null;
@@ -143,8 +152,12 @@ export async function saveStrategy(
   }
 }
 
-export async function deleteStrategy(version: string): Promise<void> {
-  const { error } = await db().from('strategies').delete().eq('version', version);
+export async function deleteStrategy(version: string, userId?: string): Promise<void> {
+  const query = db().from('strategies').delete().eq('version', version);
+  if (userId) query.eq('user_id', userId);
+  else query.is('user_id', null);
+
+  const { error } = await query;
   if (error) {
     throw new Error(`[db] deleteStrategy failed: ${error.message}`);
   }
@@ -194,15 +207,7 @@ export async function getHistorySessions(userId: string): Promise<
   }
 
   return (data ?? []).map((r) => {
-    if (r.evaluation?.rubric) {
-      if (
-        r.evaluation.rubric.opportunityCoverage === undefined &&
-        r.evaluation.rubric.missedOpportunities !== undefined
-      ) {
-        r.evaluation.rubric.opportunityCoverage = r.evaluation.rubric.missedOpportunities;
-        delete r.evaluation.rubric.missedOpportunities;
-      }
-    }
+    applyEvaluationShims(r.evaluation);
     return {
       id: r.id,
       status: r.status,

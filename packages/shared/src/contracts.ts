@@ -84,7 +84,7 @@ export type TurnStreamEvent =
         nextActionIndicator?: string;
         statusMetadata?: string;
         assessment?: {
-          depthSignal?: string;
+          depthSignal?: 'shallow' | 'adequate' | 'deep';
           topicCoverage?: number;
           shouldTransition?: boolean;
           observedWeakness?: string;

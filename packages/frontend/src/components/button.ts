@@ -23,7 +23,10 @@ export function createButton(options: ButtonOptions): HTMLButtonElement {
 
   if (options.disabled) {
     btn.disabled = true;
+    btn.setAttribute('aria-disabled', 'true');
   }
+
+  btn.setAttribute('aria-label', options.label || options.icon || 'button');
 
   if (options.icon) {
     const iconEl = document.createElement('i');

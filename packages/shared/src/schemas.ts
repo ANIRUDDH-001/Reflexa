@@ -103,7 +103,8 @@ export const StrategyUpdate = z.object({
   whyItFailed: z.string(),
   whatToDoNextTime: z.string(),
   whatToAvoidNextTime: z.string(),
-  changes: z.record(z.any()).optional(),
+  newRules: z.array(z.string()).optional(),
+  changes: z.record(z.any()).optional(), // deprecated
   updatedAt: z.string(),
 });
 

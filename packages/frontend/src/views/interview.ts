@@ -20,7 +20,17 @@ let isThinking = false;
 let isPaused = false;
 let currentSessionId: string | null = null;
 let currentTurn = 0;
+let currentMaxTurns = 20;
 let currentPhase = 'intro';
+let currentAbortController: AbortController | null = null;
+
+// Abort stream if user navigates away
+window.addEventListener('hashchange', () => {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+});
 
 export async function renderInterview(
   container: HTMLElement,
@@ -248,7 +258,12 @@ export async function renderInterview(
     let hasStarted = false;
 
     try {
-      for await (const event of sendTurnStream(currentSessionId, text)) {
+      currentAbortController = new AbortController();
+      for await (const event of sendTurnStream(
+        currentSessionId,
+        text,
+        currentAbortController.signal,
+      )) {
         if (event.type === 'token') {
           if (!hasStarted) {
             // First token: swap typing indicator for the real bubble
@@ -313,7 +328,7 @@ export async function renderInterview(
             progressEl.appendChild(
               createProgress({
                 value: currentTurn,
-                max: 20,
+                max: currentMaxTurns,
                 label: `Turn ${currentTurn} • Phase: ${currentPhase.replace('_', ' ')}`,
               }),
             );
@@ -408,10 +423,15 @@ export async function renderInterview(
       setComposerDisabled(false);
     }
 
-    // Safe: hardcoded HTML switch
-    pauseBtn.innerHTML = isPaused
-      ? '<i data-lucide="play-circle"></i><span>Resume</span>'
-      : '<i data-lucide="pause-circle"></i><span>Suspend</span>';
+    if (isPaused) {
+      pauseBtn.classList.add('btn--primary');
+      pauseBtn.classList.remove('btn--secondary');
+      pauseBtn.innerHTML = '<i data-lucide="play-circle"></i><span>Resume</span>';
+    } else {
+      pauseBtn.classList.add('btn--secondary');
+      pauseBtn.classList.remove('btn--primary');
+      pauseBtn.innerHTML = '<i data-lucide="pause-circle"></i><span>Suspend</span>';
+    }
 
     const progressEl = document.getElementById('progress-content');
     if (progressEl) {
@@ -420,7 +440,7 @@ export async function renderInterview(
       progressEl.appendChild(
         createProgress({
           value: currentTurn,
-          max: 20,
+          max: currentMaxTurns,
           label: `Turn ${currentTurn} • Phase: ${currentPhase.replace('_', ' ')}`,
         }),
       );
@@ -444,7 +464,17 @@ export async function renderInterview(
       }).outerHTML;
 
       currentTurn = session.turnCount || 0;
+      currentMaxTurns = parseInt(session.config.timeLimit || '20', 10);
       currentPhase = session.interviewPhase || 'intro';
+
+      if (session.status === 'completed') {
+        showToast({
+          title: 'Session Completed',
+          message: 'This interview has already ended. It is read-only.',
+          type: 'info',
+        });
+        isPaused = true;
+      }
 
       if (session.trace && session.trace.length > 0) {
         messages = session.trace
