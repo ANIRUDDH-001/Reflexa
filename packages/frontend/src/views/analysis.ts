@@ -5,6 +5,7 @@ import { createCard } from '../components/card';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 import { escapeHtml, sanitiseHtml } from '../utils/dom';
+import { marked } from 'marked';
 
 function toTitleCase(str: string): string {
   if (!str) return str;
@@ -97,6 +98,7 @@ export async function renderAnalysis(
         </button>
         <div id="btn-share-container"></div>
         <div id="btn-target-container"></div>
+        <div id="btn-queue-container"></div>
       </div>
     `;
 
@@ -136,9 +138,54 @@ export async function renderAnalysis(
         );
       }
 
-      // TODO: Phase 4 — Re-enable when the study view is implemented
-      // const targetContainer = document.getElementById('btn-target-container');
-      // if (targetContainer) { ... }
+      const targetContainer = document.getElementById('btn-target-container');
+      if (targetContainer) {
+        targetContainer.appendChild(
+          createButton({
+            label: 'Target Weaknesses',
+            variant: 'primary',
+            icon: 'target',
+            onClick: async (e) => {
+              const btn = e.currentTarget as HTMLButtonElement;
+              const originalLabel = btn.innerHTML;
+              btn.disabled = true;
+              btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i><span>Generating...</span>';
+              refreshIcons();
+              
+              try {
+                showToast({ title: 'Study Plan', message: 'Generating personalized curriculum...', type: 'info' });
+                await api.generateStudyPlan(session.id);
+                window.location.reload();
+              } catch (err) {
+                showToast({ title: 'Error', message: 'Failed to generate study plan', type: 'error' });
+                btn.disabled = false;
+                btn.innerHTML = originalLabel;
+                refreshIcons();
+              }
+            },
+          }),
+        );
+      }
+
+      const queueContainer = document.getElementById('btn-queue-container');
+      if (queueContainer) {
+        queueContainer.appendChild(
+          createButton({
+            label: 'Queue Evaluation',
+            variant: 'primary',
+            icon: 'list-plus',
+            onClick: () => {
+              // Save config to localStorage to queue next session
+              const queuedConfig = {
+                ...session.config,
+                focusAreas: session.strategyUpdate?.newRules || session.config.focusAreas,
+              };
+              localStorage.setItem('reflexa_queued_session', JSON.stringify(queuedConfig));
+              showToast({ title: 'Queued', message: 'Next session will automatically apply these settings.', type: 'success' });
+            },
+          }),
+        );
+      }
     }, 0);
   };
 
@@ -574,6 +621,38 @@ export async function renderAnalysis(
   mainGrid.appendChild(rightCol);
 
   container.appendChild(mainGrid);
+
+  // ── Study Plan Section ──
+  const studyPlanContainer = document.createElement('div');
+  studyPlanContainer.id = 'study-plan-container';
+  studyPlanContainer.className = 'mt-8 animate-fade-in';
+  container.appendChild(studyPlanContainer);
+
+  const renderStudyPlanContent = () => {
+    if (!session.evaluation?.studyPlan) return;
+    studyPlanContainer.innerHTML = '';
+    
+    // Convert Markdown to HTML
+    const rawHtml = marked.parse(session.evaluation.studyPlan.contentMarkdown);
+    const cleanHtml = sanitiseHtml(rawHtml as string);
+
+    const planCard = document.createElement('div');
+    planCard.className = 'bg-white p-8 rounded-lg border border-accent/20 shadow-sm prose prose-accent max-w-none';
+    planCard.innerHTML = cleanHtml;
+    
+    studyPlanContainer.appendChild(
+      createCard({
+        title: 'Your Personalized Study Plan',
+        content: planCard,
+      })
+    );
+    
+    // Hide Target Weaknesses button if study plan already generated
+    const targetBtn = document.getElementById('btn-target-container');
+    if (targetBtn) targetBtn.style.display = 'none';
+  };
+
+  renderStudyPlanContent();
 
   setTimeout(() => {
     const stratBtn = document.getElementById('preview-strategy-btn');

@@ -115,6 +115,15 @@ export const api = {
     if (!res.ok) throw new Error('Failed to end session');
     return res.json();
   },
+
+  async generateStudyPlan(id: string) {
+    const res = await apiFetch(`/session/${id}/study-plan`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('Failed to generate study plan');
+    return res.json();
+  },
 };
 
 export async function getLatestStrategyInfo(): Promise<{

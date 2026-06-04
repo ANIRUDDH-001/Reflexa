@@ -15,6 +15,7 @@ import {
   processTurnStream,
   CandidateAssessment,
 } from './engine/llm';
+import { generateStudyPlan } from './engine/studyPlan';
 import { buildOpeningMessage } from './engine/promptBuilder';
 import { extractAuthenticatedUser } from './middleware/auth';
 import { updateSessionPhase } from './phaseUtils';
@@ -647,6 +648,36 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     logger.error({ err: error }, 'Failed to generate evaluation');
     return res.status(500).json({ error: 'Failed to generate evaluation' });
+  }
+});
+
+// Generate Study Plan
+app.post('/session/:id/study-plan', async (req: Request, res: Response) => {
+  const sessionId = req.params.id;
+  try {
+    const session = await getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.evaluation) {
+      return res.status(400).json({ error: 'Cannot generate study plan without evaluation' });
+    }
+
+    const planMarkdown = await generateStudyPlan(session);
+    
+    // Store it in the session evaluation
+    session.evaluation.studyPlan = {
+      contentMarkdown: planMarkdown,
+      generatedAt: new Date().toISOString(),
+    };
+    
+    await saveSession(session);
+    
+    return res.json({ studyPlan: session.evaluation.studyPlan });
+  } catch (error: unknown) {
+    logger.error({ err: error, sessionId }, 'Failed to generate study plan');
+    return res.status(500).json({ error: 'Failed to generate study plan' });
   }
 });
 

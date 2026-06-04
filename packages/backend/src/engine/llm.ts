@@ -372,6 +372,10 @@ export interface EvaluationResultData {
     failurePatternLabel: string;
   }>;
   strategyOverrides: string[];
+  studyPlan?: {
+    contentMarkdown: string;
+    generatedAt: string;
+  };
 }
 
 const FAILURE_PATTERN_VALUES = [

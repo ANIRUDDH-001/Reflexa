@@ -81,6 +81,11 @@ export const WeakTurn = z.object({
   failurePatternLabel: FailurePattern,
 });
 
+export const StudyPlan = z.object({
+  contentMarkdown: z.string(),
+  generatedAt: z.string(),
+});
+
 export const EvaluationResult = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -92,6 +97,7 @@ export const EvaluationResult = z.object({
   candidateSummary: z.string().optional(),
   weakTurns: z.array(WeakTurn).optional(),
   strategyOverrides: z.array(z.string()).optional(),
+  studyPlan: StudyPlan.optional(),
   details: z.any().optional(),
   evaluatedAt: z.string(),
 });
@@ -144,6 +150,7 @@ export type EvaluationResult = z.infer<typeof EvaluationResult>;
 export type StrategyUpdate = z.infer<typeof StrategyUpdate>;
 export type SessionComparison = z.infer<typeof SessionComparison>;
 export type InterviewSession = z.infer<typeof InterviewSession>;
+export type StudyPlan = z.infer<typeof StudyPlan>;
 
 export const Schemas = {
   SystemPromptVersion,

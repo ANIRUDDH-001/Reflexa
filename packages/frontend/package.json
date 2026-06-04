@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@reflexa/shared": "file:../shared",
-    "@supabase/supabase-js": "^2.106.2"
+    "@supabase/supabase-js": "^2.106.2",
+    "marked": "^18.0.4"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.3",
