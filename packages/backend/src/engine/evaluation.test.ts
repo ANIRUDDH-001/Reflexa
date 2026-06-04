@@ -111,7 +111,7 @@ describe('opportunityCoverage field semantics', () => {
     const opportunitySchema = rubricProps?.['opportunityCoverage'];
     const fieldDesc = opportunitySchema?.description;
     expect(fieldDesc).toBeDefined();
-    expect(fieldDesc?.toLowerCase()).toContain('higher is better');
+    expect(fieldDesc?.toLowerCase()).toContain('100 = captured all key opportunities');
     expect(fieldDesc?.toLowerCase()).not.toContain('100 means many missed');
   });
 });

@@ -332,7 +332,15 @@ export interface EvaluationResultData {
     opportunityCoverage: number;
     overall: number;
   };
+  candidateRubric: {
+    technicalAccuracy: number;
+    communicationClarity: number;
+    problemSolving: number;
+    depthOfKnowledge: number;
+    overall: number;
+  };
   summary: string;
+  candidateSummary: string;
   weakTurns: Array<{
     turnLabel: string;
     summary: string;
@@ -343,15 +351,32 @@ export interface EvaluationResultData {
   strategyOverrides: string[];
 }
 
+const FAILURE_PATTERN_VALUES = [
+  'shallow_probing',
+  'ignored_context',
+  'poor_pacing',
+  'missed_followup',
+  'leading_question',
+  'off_topic',
+  'candidate_shallow_answer',
+  'candidate_incorrect',
+  'candidate_no_structure',
+  'candidate_communication_gap',
+  'other',
+] as const;
+
 export const evalSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     rubric: {
       type: Type.OBJECT,
+      description:
+        'Interviewer performance rubric — how well did the AI interviewer conduct the session.',
       properties: {
         relevance: {
           type: Type.INTEGER,
-          description: 'Score out of 100 for relevance of follow-up questions',
+          description:
+            'Score out of 100 for relevance of follow-up questions to the target role and domain',
         },
         depth: { type: Type.INTEGER, description: 'Score out of 100 for depth of probing' },
         clarity: {
@@ -367,10 +392,9 @@ export const evalSchema: Schema = {
           type: Type.INTEGER,
           description:
             'Score out of 100. How many significant follow-up opportunities did the interviewer ' +
-            'identify and pursue? 100 = captured all key opportunities; 0 = missed most opportunities. ' +
-            'Higher is better.',
+            'identify and pursue? 100 = captured all key opportunities; 0 = missed most opportunities.',
         },
-        overall: { type: Type.INTEGER, description: 'Overall score out of 100' },
+        overall: { type: Type.INTEGER, description: 'Overall interviewer score out of 100' },
       },
       required: [
         'relevance',
@@ -382,7 +406,59 @@ export const evalSchema: Schema = {
         'overall',
       ],
     },
-    summary: { type: Type.STRING, description: "Brief summary of the agent's performance" },
+    candidateRubric: {
+      type: Type.OBJECT,
+      description: 'Candidate performance rubric — how well did the interviewee perform.',
+      properties: {
+        technicalAccuracy: {
+          type: Type.INTEGER,
+          description:
+            'Score out of 100. Did the candidate give technically correct answers? ' +
+            'Account for the target difficulty level.',
+        },
+        communicationClarity: {
+          type: Type.INTEGER,
+          description:
+            'Score out of 100. Did the candidate communicate their reasoning clearly ' +
+            'and structure their answers logically?',
+        },
+        problemSolving: {
+          type: Type.INTEGER,
+          description:
+            'Score out of 100. Did the candidate show strong problem-solving approach? ' +
+            'Breaking down problems, considering edge cases, evaluating trade-offs.',
+        },
+        depthOfKnowledge: {
+          type: Type.INTEGER,
+          description:
+            'Score out of 100. Did the candidate demonstrate deep domain knowledge ' +
+            'or only surface-level understanding?',
+        },
+        overall: {
+          type: Type.INTEGER,
+          description:
+            'Overall candidate score out of 100. Should be influenced by the algorithmic ' +
+            'baseline provided in the prompt (if available).',
+        },
+      },
+      required: [
+        'technicalAccuracy',
+        'communicationClarity',
+        'problemSolving',
+        'depthOfKnowledge',
+        'overall',
+      ],
+    },
+    summary: {
+      type: Type.STRING,
+      description: "Brief summary of the AI interviewer's performance",
+    },
+    candidateSummary: {
+      type: Type.STRING,
+      description:
+        "Brief summary of the candidate's performance, strengths, and areas for improvement. " +
+        'Written as constructive feedback the candidate would benefit from reading.',
+    },
     weakTurns: {
       type: Type.ARRAY,
       items: {
@@ -396,12 +472,16 @@ export const evalSchema: Schema = {
           },
           traceData: {
             type: Type.STRING,
-            description: 'HTML snippet containing the exact AI and User messages for this turn',
+            description: 'Deprecated — leave empty. Trace data is rendered from session history.',
           },
           failurePatternLabel: {
             type: Type.STRING,
+            enum: [...FAILURE_PATTERN_VALUES],
             description:
-              "A categorical label for the failure (e.g. 'shallow_probing', 'ignored_context', 'poor_pacing')",
+              'A categorical label from the failure taxonomy. ' +
+              'interviewer-side: shallow_probing, ignored_context, poor_pacing, missed_followup, leading_question, off_topic. ' +
+              'candidate-side: candidate_shallow_answer, candidate_incorrect, candidate_no_structure, candidate_communication_gap. ' +
+              'or: other.',
           },
         },
         required: ['turnLabel', 'summary', 'explanation', 'traceData', 'failurePatternLabel'],
@@ -412,14 +492,64 @@ export const evalSchema: Schema = {
       items: { type: Type.STRING },
     },
   },
-  required: ['rubric', 'summary', 'weakTurns', 'strategyOverrides'],
+  required: [
+    'rubric',
+    'candidateRubric',
+    'summary',
+    'candidateSummary',
+    'weakTurns',
+    'strategyOverrides',
+  ],
 };
+
+/**
+ * Compute an algorithmic baseline score from per-turn candidateAssessment data.
+ * Returns { avgCoverage, depthBreakdown, totalTurns } or null if no assessments found.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function computeAlgorithmicBaseline(traceData: Array<{ type: string; payload?: any }>) {
+  const assessments = traceData
+    .filter((t) => t.type === 'ai_message' && t.payload?.assessment)
+    .map((t) => t.payload.assessment as CandidateAssessment);
+
+  if (assessments.length === 0) return null;
+
+  const avgCoverage = Math.round(
+    assessments.reduce((sum, a) => sum + (a.topicCoverage ?? 0), 0) / assessments.length,
+  );
+
+  const depthCounts = { shallow: 0, adequate: 0, deep: 0 };
+  assessments.forEach((a) => {
+    const signal = a.depthSignal ?? 'adequate';
+    if (signal in depthCounts) depthCounts[signal as keyof typeof depthCounts]++;
+  });
+
+  const weaknesses = assessments
+    .map((a) => a.observedWeakness)
+    .filter((w) => w && w.trim().length > 0);
+
+  return {
+    avgCoverage,
+    depthBreakdown: depthCounts,
+    totalTurns: assessments.length,
+    topWeaknesses: weaknesses.slice(0, 5),
+  };
+}
+
+/** Session configuration passed to the evaluator for domain-aware scoring. */
+export interface EvalSessionConfig {
+  role?: string | null;
+  difficulty?: string | null;
+  style?: string | null;
+  focusAreas?: string[];
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateEvaluation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   traceData: Array<{ type: string; payload?: any }>,
   sessionId?: string,
+  config?: EvalSessionConfig,
 ): Promise<EvaluationResultData & { traceId: string }> {
   return tracer.startActiveSpan(
     'generateEvaluation',
@@ -451,10 +581,20 @@ export async function generateEvaluation(
               opportunityCoverage: 0,
               overall: 0,
             },
+            candidateRubric: {
+              technicalAccuracy: 0,
+              communicationClarity: 0,
+              problemSolving: 0,
+              depthOfKnowledge: 0,
+              overall: 0,
+            },
             summary:
               `Session abandoned after ${userMessageCount} user message(s). ` +
               `Insufficient data to evaluate interview quality. ` +
               `Consider adjusting the opening question to better engage the candidate faster.`,
+            candidateSummary:
+              `The candidate sent only ${userMessageCount} message(s). ` +
+              `No meaningful candidate assessment is possible from this session.`,
             weakTurns: [
               {
                 turnLabel: 'Full session',
@@ -463,7 +603,7 @@ export async function generateEvaluation(
                   `The candidate sent only ${userMessageCount} message(s) before the session ended. ` +
                   `No meaningful assessment of depth, clarity, or adaptability is possible.`,
                 traceData: '',
-                failurePatternLabel: 'session_abandoned',
+                failurePatternLabel: 'other',
               },
             ],
             strategyOverrides: [
@@ -483,9 +623,56 @@ export async function generateEvaluation(
           .map((t) => `${t.type === 'ai_message' ? 'AI' : 'User'}: ${t.payload?.text || ''}`)
           .join('\n\n');
 
+        // Build domain context for the evaluator
+        const role = config?.role || 'Software Engineer';
+        const difficulty = config?.difficulty || 'Medium';
+        const style = config?.style || 'Technical Interview';
+        const focusAreas = config?.focusAreas?.join(', ') || 'general engineering practices';
+
+        // Compute algorithmic baseline from per-turn assessments
+        const baseline = computeAlgorithmicBaseline(traceData);
+        let baselineBlock = '';
+        if (baseline) {
+          baselineBlock =
+            `\n## Algorithmic Baseline (from per-turn assessment data)\n` +
+            `The system tracked the candidate's performance across ${baseline.totalTurns} assessed turns:\n` +
+            `- Average topic coverage: ${baseline.avgCoverage}%\n` +
+            `- Depth distribution: shallow=${baseline.depthBreakdown.shallow}, adequate=${baseline.depthBreakdown.adequate}, deep=${baseline.depthBreakdown.deep}\n` +
+            (baseline.topWeaknesses.length > 0
+              ? `- Observed weaknesses: ${baseline.topWeaknesses.join('; ')}\n`
+              : '') +
+            `\nUse this algorithmic baseline to ANCHOR your candidateRubric.overall score. ` +
+            `The algorithmic average coverage was ${baseline.avgCoverage}% — your overall candidate score ` +
+            `should be within ±15 points of this baseline unless you have strong qualitative reasons to deviate. ` +
+            `If you deviate significantly, explain why in candidateSummary.\n`;
+        }
+
         const systemInstruction =
-          "You are an expert engineering manager evaluating the AI Agent's performance as an interviewer in a completed session. Analyze the following interview trace and identify the weakest turns where the AI struggled, made assumptions, failed to probe deeply, or missed opportunities. Provide a comprehensive structured evaluation including a rubric breakdown and strategy overrides.\n\n" +
-          'For opportunityCoverage: score 100 if the interviewer captured and pursued all significant follow-up threads. Score 0 if they let many opportunities pass. High score = interviewer was thorough and engaged.';
+          `You are an expert engineering manager evaluating a completed interview session.\n\n` +
+          `## Session Context\n` +
+          `- Role: ${role}\n` +
+          `- Difficulty: ${difficulty}\n` +
+          `- Style: ${style}\n` +
+          `- Focus Areas: ${focusAreas}\n\n` +
+          `## Your Task\n` +
+          `Evaluate BOTH the AI Interviewer's performance AND the Candidate's performance.\n\n` +
+          `### Interviewer Rubric (rubric field)\n` +
+          `Score the AI interviewer on: relevance (were follow-ups relevant to ${role} at ${difficulty} level?), ` +
+          `depth (did it probe deep enough for the difficulty?), clarity, adaptability, pacing, and opportunityCoverage.\n\n` +
+          `### Candidate Rubric (candidateRubric field)\n` +
+          `Score the candidate on: technicalAccuracy (correctness for a ${role} at ${difficulty} level), ` +
+          `communicationClarity (structured thinking, clear explanations), ` +
+          `problemSolving (approach, edge cases, trade-offs), ` +
+          `depthOfKnowledge (surface-level vs deep domain expertise).\n` +
+          baselineBlock +
+          `\n### Weak Turns\n` +
+          `Identify turns where EITHER the interviewer or candidate had issues. ` +
+          `Use the failurePatternLabel taxonomy:\n` +
+          `- Interviewer failures: shallow_probing, ignored_context, poor_pacing, missed_followup, leading_question, off_topic\n` +
+          `- Candidate failures: candidate_shallow_answer, candidate_incorrect, candidate_no_structure, candidate_communication_gap\n` +
+          `- Use 'other' only if nothing else fits.\n` +
+          `\nFor opportunityCoverage: score 100 if the interviewer captured and pursued all significant follow-up threads. ` +
+          `Score 0 if they let many opportunities pass.`;
 
         for (const model of MODELS) {
           try {

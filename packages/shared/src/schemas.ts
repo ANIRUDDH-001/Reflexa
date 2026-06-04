@@ -49,21 +49,47 @@ export const EvaluationRubric = z.object({
   overall: z.number().min(0).max(100),
 });
 
+/** Candidate-facing rubric — evaluates the interviewee's performance */
+export const CandidateRubric = z.object({
+  technicalAccuracy: z.number().min(0).max(100),
+  communicationClarity: z.number().min(0).max(100),
+  problemSolving: z.number().min(0).max(100),
+  depthOfKnowledge: z.number().min(0).max(100),
+  overall: z.number().min(0).max(100),
+});
+
+/** Standardised failure taxonomy for weak turns */
+export const FailurePattern = z.enum([
+  'shallow_probing',
+  'ignored_context',
+  'poor_pacing',
+  'missed_followup',
+  'leading_question',
+  'off_topic',
+  'candidate_shallow_answer',
+  'candidate_incorrect',
+  'candidate_no_structure',
+  'candidate_communication_gap',
+  'other',
+]);
+
 export const WeakTurn = z.object({
   turnLabel: z.string(),
   summary: z.string(),
   explanation: z.string(),
   traceData: z.string(),
-  failurePatternLabel: z.string(),
+  failurePatternLabel: FailurePattern,
 });
 
 export const EvaluationResult = z.object({
   id: z.string(),
   sessionId: z.string(),
   questionId: z.string().optional(),
-  score: z.number().min(0).max(100).optional(), // keeping for backwards compatibility initially
+  score: z.number().min(0).max(100).optional(), // legacy
   rubric: EvaluationRubric.optional(),
+  candidateRubric: CandidateRubric.optional(),
   summary: z.string().optional(),
+  candidateSummary: z.string().optional(),
   weakTurns: z.array(WeakTurn).optional(),
   strategyOverrides: z.array(z.string()).optional(),
   details: z.any().optional(),
@@ -110,6 +136,8 @@ export type Question = z.infer<typeof Question>;
 export type Answer = z.infer<typeof Answer>;
 export type TraceEvent = z.infer<typeof TraceEvent>;
 export type EvaluationRubric = z.infer<typeof EvaluationRubric>;
+export type CandidateRubric = z.infer<typeof CandidateRubric>;
+export type FailurePattern = z.infer<typeof FailurePattern>;
 export type WeakTurn = z.infer<typeof WeakTurn>;
 export type EvaluationResult = z.infer<typeof EvaluationResult>;
 export type StrategyUpdate = z.infer<typeof StrategyUpdate>;
@@ -123,6 +151,8 @@ export const Schemas = {
   Answer,
   TraceEvent,
   EvaluationRubric,
+  CandidateRubric,
+  FailurePattern,
   WeakTurn,
   EvaluationResult,
   StrategyUpdate,

@@ -529,7 +529,12 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   session.endedAt = new Date().toISOString();
 
   try {
-    const evaluation = await generateEvaluation(session.trace || [], sessionId);
+    const evaluation = await generateEvaluation(session.trace || [], sessionId, {
+      role: session.config.role,
+      difficulty: session.config.difficulty,
+      style: session.config.style,
+      focusAreas: session.config.focusAreas,
+    });
 
     // Introspection via MCP
     const evalScore = evaluation.rubric?.overall ?? evaluation.score ?? 0;

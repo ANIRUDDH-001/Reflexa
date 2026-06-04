@@ -161,30 +161,19 @@ export async function renderAnalysis(
   const renderScores = () => {
     // Safe: clear
     scoreGridContainer.innerHTML = '';
-    const scoreGrid = document.createElement('div');
-    scoreGrid.className = 'grid gap-6 mb-6';
-    scoreGrid.style.display = 'grid';
-    scoreGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
 
-    const rubric = evaluation.rubric || { overall: evaluation.score };
-    const baseScores = [
-      { label: 'Overall Quality', score: rubric.overall, key: 'overall' },
-      { label: 'Relevance', score: rubric.relevance, key: 'relevance' },
-      { label: 'Depth of Probing', score: rubric.depth, key: 'depth' },
-      { label: 'Clarity', score: rubric.clarity, key: 'clarity' },
-      { label: 'Adaptability', score: rubric.adaptability, key: 'adaptability' },
-      { label: 'Pacing', score: rubric.pacing, key: 'pacing' },
-      {
-        label: 'Opportunity Coverage',
-        score: rubric.opportunityCoverage,
-        key: 'opportunityCoverage',
-      },
-    ].filter((s) => s.score !== undefined);
+    // ── Helper: render a score card ──
+    const renderScoreCard = (
+      label: string,
+      score: number | undefined,
+      key: string,
+      accentClass: string,
+    ): HTMLElement | null => {
+      if (score === undefined) return null;
 
-    baseScores.forEach((s) => {
       let trendHtml = '';
-      if (isComparing && comparison && comparison.delta[s.key] !== undefined) {
-        const deltaVal = comparison.delta[s.key];
+      if (isComparing && comparison && comparison.delta[key] !== undefined) {
+        const deltaVal = comparison.delta[key];
         const trendType = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : 'neutral';
         const trendIcon =
           trendType === 'positive'
@@ -206,17 +195,108 @@ export async function renderAnalysis(
         `;
       }
 
-      const cardContent = document.createElement('div');
-      cardContent.className = 'score-card p-4 rounded-lg border bg-white';
-      // Safe: internal score values
-      cardContent.innerHTML = `
-        <div class="text-sm text-gray-500 mb-1">${s.label}</div>
+      const card = document.createElement('div');
+      card.className = `score-card p-4 rounded-lg border ${accentClass}`;
+      card.innerHTML = `
+        <div class="text-sm text-gray-500 mb-1">${label}</div>
         <div class="flex items-end gap-3">
-          <div class="text-3xl font-bold">${s.score}%</div>
+          <div class="text-3xl font-bold">${score}%</div>
           ${trendHtml}
         </div>
       `;
-      scoreGrid.appendChild(cardContent);
+      return card;
+    };
+
+    // ── Candidate Performance Section ──
+    const candidateRubric = evaluation.candidateRubric;
+    if (candidateRubric) {
+      const section = document.createElement('div');
+      section.className = 'mb-8';
+      const sectionTitle = document.createElement('h3');
+      sectionTitle.className = 'text-lg font-semibold mb-3 flex items-center gap-2';
+      sectionTitle.innerHTML = `<i data-lucide="user" style="width: 18px; height: 18px; color: var(--color-accent)"></i> Your Performance`;
+      section.appendChild(sectionTitle);
+
+      // Candidate summary
+      if (evaluation.candidateSummary) {
+        const summaryEl = document.createElement('p');
+        summaryEl.className = 'text-sm text-gray-600 mb-4 leading-relaxed';
+        summaryEl.textContent = evaluation.candidateSummary;
+        section.appendChild(summaryEl);
+      }
+
+      const candidateGrid = document.createElement('div');
+      candidateGrid.className = 'grid gap-4 mb-6';
+      candidateGrid.style.display = 'grid';
+      candidateGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
+
+      const candidateScores = [
+        { label: 'Overall', score: candidateRubric.overall, key: 'candidate_overall' },
+        {
+          label: 'Technical Accuracy',
+          score: candidateRubric.technicalAccuracy,
+          key: 'candidate_technicalAccuracy',
+        },
+        {
+          label: 'Communication',
+          score: candidateRubric.communicationClarity,
+          key: 'candidate_communicationClarity',
+        },
+        {
+          label: 'Problem Solving',
+          score: candidateRubric.problemSolving,
+          key: 'candidate_problemSolving',
+        },
+        {
+          label: 'Depth of Knowledge',
+          score: candidateRubric.depthOfKnowledge,
+          key: 'candidate_depthOfKnowledge',
+        },
+      ];
+
+      candidateScores.forEach((s) => {
+        const card = renderScoreCard(s.label, s.score, s.key, 'bg-white');
+        if (card) {
+          // Add accent left-border to candidate cards
+          card.style.borderLeft = '3px solid var(--color-accent)';
+          candidateGrid.appendChild(card);
+        }
+      });
+      section.appendChild(candidateGrid);
+      scoreGridContainer.appendChild(section);
+    }
+
+    // ── Interviewer Calibration Section ──
+    const section2 = document.createElement('div');
+    section2.className = 'mb-6';
+    const sectionTitle2 = document.createElement('h3');
+    sectionTitle2.className = 'text-lg font-semibold mb-3 flex items-center gap-2';
+    sectionTitle2.innerHTML = `<i data-lucide="bot" style="width: 18px; height: 18px; color: var(--color-gray-500)"></i> Interviewer Calibration`;
+    section2.appendChild(sectionTitle2);
+
+    const scoreGrid = document.createElement('div');
+    scoreGrid.className = 'grid gap-4 mb-6';
+    scoreGrid.style.display = 'grid';
+    scoreGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
+
+    const rubric = evaluation.rubric || { overall: evaluation.score };
+    const baseScores = [
+      { label: 'Overall Quality', score: rubric.overall, key: 'overall' },
+      { label: 'Relevance', score: rubric.relevance, key: 'relevance' },
+      { label: 'Depth of Probing', score: rubric.depth, key: 'depth' },
+      { label: 'Clarity', score: rubric.clarity, key: 'clarity' },
+      { label: 'Adaptability', score: rubric.adaptability, key: 'adaptability' },
+      { label: 'Pacing', score: rubric.pacing, key: 'pacing' },
+      {
+        label: 'Opportunity Coverage',
+        score: rubric.opportunityCoverage,
+        key: 'opportunityCoverage',
+      },
+    ].filter((s) => s.score !== undefined);
+
+    baseScores.forEach((s) => {
+      const card = renderScoreCard(s.label, s.score, s.key, 'bg-white');
+      if (card) scoreGrid.appendChild(card);
     });
 
     if (isComparing && comparison) {
@@ -225,7 +305,9 @@ export async function renderAnalysis(
       compLabel.textContent = comparison.behaviorChanges;
       scoreGrid.appendChild(compLabel);
     }
-    scoreGridContainer.appendChild(scoreGrid);
+
+    section2.appendChild(scoreGrid);
+    scoreGridContainer.appendChild(section2);
   };
   renderScores();
 

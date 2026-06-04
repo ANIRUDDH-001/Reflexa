@@ -52,7 +52,7 @@ describe('schemas', () => {
         summary: 'summary',
         explanation: 'explanation',
         traceData: 'trace-data',
-        failurePatternLabel: 'pattern-1',
+        failurePatternLabel: 'shallow_probing',
       };
       expect(Schemas.WeakTurn.safeParse(valid).success).toBe(true);
     });
@@ -89,7 +89,7 @@ describe('schemas', () => {
             summary: 'Lost context',
             explanation: 'The AI forgot the previous question',
             traceData: 't3',
-            failurePatternLabel: 'Context Loss',
+            failurePatternLabel: 'ignored_context',
           },
         ],
         strategyOverrides: ['Focus on clarity'],
