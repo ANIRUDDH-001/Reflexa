@@ -42,11 +42,31 @@ export function sanitiseHtml(value: unknown): string {
     'em',
     'div',
     'ul',
+    'ol',
     'li',
     'code',
     'pre',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'a',
+    'blockquote',
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
+    'hr',
+    'img',
+    'small',
+    'sub',
+    'sup',
   ]);
-  const allowedAttrs = new Set(['style']); // Allow style for trace formatting (bg colors, padding)
+  const allowedAttrs = new Set(['style', 'class', 'href', 'target', 'rel', 'src', 'alt']);
   const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
 
   const toRemove: Element[] = [];

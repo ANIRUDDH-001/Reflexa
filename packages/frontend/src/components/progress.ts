@@ -22,6 +22,7 @@ export function createProgress(options: ProgressOptions): HTMLElement {
     header.appendChild(labelEl);
 
     const percent = Math.min(100, Math.max(0, Math.round((options.value / options.max) * 100)));
+    const percentEl = document.createElement('span');
     percentEl.textContent = `${percent}%`;
     header.appendChild(percentEl);
 

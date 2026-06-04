@@ -1,7 +1,7 @@
+import Chart from 'chart.js/auto';
 import { api } from '../api';
 import { refreshIcons } from '../lucide';
 import { escapeHtml } from '../utils/dom';
-import Chart from 'chart.js/auto';
 
 export async function renderDashboard(container: HTMLElement): Promise<void> {
   container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading dashboard…</div>';
@@ -62,13 +62,18 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
       const prevScores = scores.slice(1, 4);
       const prevAvg = prevScores.reduce((a: number, b: number) => a + b, 0) / prevScores.length;
       const diff = Math.round(latestScore! - prevAvg);
-      const icon = diff >= 0 ? '<i data-lucide="trending-up" class="w-4 h-4"></i>' : '<i data-lucide="trending-down" class="w-4 h-4"></i>';
+      const icon =
+        diff >= 0
+          ? '<i data-lucide="trending-up" class="w-4 h-4"></i>'
+          : '<i data-lucide="trending-down" class="w-4 h-4"></i>';
       const colorClass = diff >= 0 ? 'text-success' : 'text-error';
-      trendHtml = `<span class="flex items-center gap-1 ${colorClass} text-sm font-medium mt-1 justify-center">${icon} ${diff > 0 ? '+' : ''}${diff}% from recent</span>`;
+      trendHtml = `<span class="flex items-center gap-1 ${colorClass} text-sm font-medium mt-1 justify-center">${icon} ${
+        diff > 0 ? '+' : ''
+      }${diff}% from recent</span>`;
     }
 
     const statsHtml = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-5);margin-bottom:var(--space-6)">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4" style="margin-bottom:var(--space-6)">
         <div class="panel p-6 text-center bg-white border border-gray-200 animate-hover-lift">
           <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Sessions</p>
           <p class="text-3xl font-bold text-gray-900">${totalSessions}</p>
@@ -115,7 +120,7 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
         const delay = idx * 0.05;
 
         return `
-        <div class="panel p-4 mb-4 flex items-center justify-between hover:border-accent transition-colors animate-fade-in-up" style="animation-delay: ${delay}s">
+        <div class="panel p-4 mb-4 flex flex-wrap items-center justify-between gap-3 hover:border-accent transition-colors animate-fade-in-up" style="animation-delay: ${delay}s">
           <div>
             <h4 class="font-semibold text-gray-900">${role} Interview</h4>
             <div class="flex items-center gap-2 mt-1">
@@ -163,29 +168,37 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
       if (canvas) {
         // Reverse sessions to show chronological order left-to-right
         const chronoSessions = [...sessions].reverse();
-        const labels = chronoSessions.map((s: any) => new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
-        const dataPoints = chronoSessions.map((s: any) => 
-          s.evaluation?.candidateRubric?.overall ?? s.evaluation?.rubric?.overall ?? s.evaluation?.score ?? null
+        const labels = chronoSessions.map((s: any) =>
+          new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        );
+        const dataPoints = chronoSessions.map(
+          (s: any) =>
+            s.evaluation?.candidateRubric?.overall ??
+            s.evaluation?.rubric?.overall ??
+            s.evaluation?.score ??
+            null,
         );
 
         new Chart(canvas, {
           type: 'line',
           data: {
             labels,
-            datasets: [{
-              label: 'Overall Score',
-              data: dataPoints,
-              borderColor: '#0d9488', // Teal 600
-              backgroundColor: 'rgba(13, 148, 136, 0.1)',
-              borderWidth: 2,
-              pointBackgroundColor: '#fff',
-              pointBorderColor: '#0d9488',
-              pointBorderWidth: 2,
-              pointRadius: 4,
-              pointHoverRadius: 6,
-              fill: true,
-              tension: 0.4 // Smooth curves
-            }]
+            datasets: [
+              {
+                label: 'Overall Score',
+                data: dataPoints,
+                borderColor: '#0d9488', // Teal 600
+                backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                borderWidth: 2,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#0d9488',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true,
+                tension: 0.4, // Smooth curves
+              },
+            ],
           },
           options: {
             responsive: true,
@@ -199,23 +212,23 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
                 bodyFont: { family: 'Inter', size: 14, weight: 'bold' },
                 displayColors: false,
                 callbacks: {
-                  label: (context) => `Score: ${context.raw}%`
-                }
-              }
+                  label: (context) => `Score: ${context.raw}%`,
+                },
+              },
             },
             scales: {
               y: {
                 beginAtZero: true,
                 max: 100,
                 grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                ticks: { family: 'Inter', color: '#6b7280', stepSize: 20 }
+                ticks: { family: 'Inter', color: '#6b7280', stepSize: 20 },
               },
               x: {
                 grid: { display: false },
-                ticks: { family: 'Inter', color: '#6b7280' }
-              }
-            }
-          }
+                ticks: { family: 'Inter', color: '#6b7280' },
+              },
+            },
+          },
         });
       }
     }

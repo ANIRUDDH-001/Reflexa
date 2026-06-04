@@ -12,6 +12,7 @@ import { renderHistory } from './views/history';
 import { renderInterview } from './views/interview';
 import { renderLogin } from './views/login';
 import { renderSession } from './views/session';
+import { renderStrategy } from './views/strategy';
 
 // ── User Identity ──────────────────────────────────────────────────────────────
 // Generate a UUID on first load and persist it in localStorage.
@@ -126,6 +127,7 @@ function bootstrapApp(app: HTMLElement): void {
   registerRoute('/interview/:id', renderInterview);
   registerRoute('/analysis/:id', renderAnalysis);
   registerRoute('/history', renderHistory);
+  registerRoute('/strategy', renderStrategy);
   registerRoute('/settings', renderSettings);
   registerRoute('/login', renderLogin);
 

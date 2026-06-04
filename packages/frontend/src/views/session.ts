@@ -47,7 +47,7 @@ const STYLE_OPTIONS = [
   {
     id: 'system-design',
     label: 'System Design',
-    icon: 'git-network',
+    icon: 'git-branch',
     desc: 'Architecture & Scalability',
   },
   { id: 'coding', label: 'Live Coding', icon: 'code', desc: 'Algorithms & Data Structures' },
@@ -99,7 +99,7 @@ export function renderSession(container: HTMLElement): void {
     if (queuedRaw) {
       try {
         const queuedConfig = JSON.parse(queuedRaw) as SessionConfig;
-        
+
         const header = document.createElement('div');
         header.className = 'view-header mb-8';
         header.innerHTML = `
@@ -107,20 +107,29 @@ export function renderSession(container: HTMLElement): void {
           <p class="view-header__subtitle">We've queued a session focusing on areas for improvement from your last interview.</p>
         `;
 
-        const roleName = ROLE_OPTIONS.find((r) => r.id === queuedConfig.role)?.label || queuedConfig.role;
-        const diffName = DIFFICULTY_OPTIONS.find((d) => d.id === queuedConfig.difficulty)?.label || queuedConfig.difficulty;
-        const styleName = STYLE_OPTIONS.find((s) => s.id === queuedConfig.style)?.label || queuedConfig.style;
-        const timeName = TIME_OPTIONS.find((t) => t.id === queuedConfig.timeLimit)?.label || queuedConfig.timeLimit;
-        
+        const roleName =
+          ROLE_OPTIONS.find((r) => r.id === queuedConfig.role)?.label || queuedConfig.role;
+        const diffName =
+          DIFFICULTY_OPTIONS.find((d) => d.id === queuedConfig.difficulty)?.label ||
+          queuedConfig.difficulty;
+        const styleName =
+          STYLE_OPTIONS.find((s) => s.id === queuedConfig.style)?.label || queuedConfig.style;
+        const timeName =
+          TIME_OPTIONS.find((t) => t.id === queuedConfig.timeLimit)?.label ||
+          queuedConfig.timeLimit;
+
         const card = document.createElement('div');
-        card.className = 'bg-accent/10 p-6 rounded-lg border border-accent/30 mb-8 max-w-lg mx-auto';
+        card.className =
+          'bg-accent/10 p-6 rounded-lg border border-accent/30 mb-8 max-w-lg mx-auto';
         card.innerHTML = `
           <h4 class="font-semibold mb-4 text-gray-900 border-b border-accent/20 pb-2 flex items-center gap-2">
             <i data-lucide="crosshair" class="text-accent"></i> Queued Configuration
           </h4>
           <dl class="grid grid-cols-2 gap-y-4 text-sm">
             <dt class="text-gray-500">Discipline</dt>
-            <dd class="font-medium text-right">${escapeHtml(roleName || '')} (${escapeHtml(diffName || '')})</dd>
+            <dd class="font-medium text-right">${escapeHtml(roleName || '')} (${escapeHtml(
+          diffName || '',
+        )})</dd>
             
             <dt class="text-gray-500">Format</dt>
             <dd class="font-medium text-right">${escapeHtml(styleName || '')}</dd>
@@ -139,7 +148,7 @@ export function renderSession(container: HTMLElement): void {
 
         const btnWrapper = document.createElement('div');
         btnWrapper.className = 'flex justify-center gap-4';
-        
+
         const startBtn = createButton({
           label: 'Launch Targeted Evaluation',
           variant: 'primary',
@@ -151,7 +160,11 @@ export function renderSession(container: HTMLElement): void {
               localStorage.removeItem('reflexa_queued_session'); // Clear after launch
               window.location.hash = `#/interview/${response.session.id}`;
             } catch (err) {
-              showToast({ title: 'Error', message: 'Failed to provision session environment.', type: 'error' });
+              showToast({
+                title: 'Error',
+                message: 'Failed to provision session environment.',
+                type: 'error',
+              });
               startBtn.classList.remove('btn--loading');
             }
           },
@@ -169,14 +182,15 @@ export function renderSession(container: HTMLElement): void {
 
         btnWrapper.appendChild(cancelBtn);
         btnWrapper.appendChild(startBtn);
-        
+
         container.appendChild(header);
         container.appendChild(card);
         container.appendChild(btnWrapper);
-        
+
         refreshIcons();
         return; // Don't render the rest of the wizard
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error('Failed to parse queued config', e);
         localStorage.removeItem('reflexa_queued_session');
       }

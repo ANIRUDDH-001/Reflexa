@@ -192,7 +192,7 @@ export async function renderInterview(
       msg.traceId && msg.traceId !== 'unknown' && /^[0-9a-f]{32}$/.test(msg.traceId)
         ? `<div class="trace-link-wrap">
              <a class="trace-link" href="${PHOENIX_TRACE_BASE}/${msg.traceId}" target="_blank" rel="noopener noreferrer">
-               🔍 View in Phoenix
+               <i data-lucide="search" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></i> View in Phoenix
              </a>
            </div>`
         : '';
@@ -305,7 +305,8 @@ export async function renderInterview(
               link.href = `${PHOENIX_TRACE_BASE}/${event.traceId}`;
               link.target = '_blank';
               link.rel = 'noopener noreferrer';
-              link.textContent = '🔍 View in Phoenix';
+              link.innerHTML =
+                '<i data-lucide="search" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></i> View in Phoenix';
               linkWrap.appendChild(link);
               aiBubble.querySelector('.message__bubble')?.appendChild(linkWrap);
             }

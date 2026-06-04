@@ -155,7 +155,7 @@ export function formatTurnBudget(turnCount: number, timeLimit: string | null): s
 
   let urgency = '';
   if (pct >= 85) {
-    urgency = ' ⚠️ CLOSING — wrap up, do not introduce new topics';
+    urgency = ' CLOSING — wrap up, do not introduce new topics';
   } else if (pct >= 65) {
     urgency = ' — deep dive phase, probe for depth';
   } else if (pct >= 30) {

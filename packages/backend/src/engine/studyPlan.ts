@@ -1,9 +1,9 @@
 import { SemanticConventions } from '@arizeai/openinference-semantic-conventions';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import pino from 'pino';
-import { getGoogleApiKey } from './llm';
 import { BackendSessionState } from '../state/types';
+import { getGoogleApiKey } from './llm';
 
 const logger = pino();
 const tracer = trace.getTracer('reflexa-study-plan');
@@ -39,7 +39,9 @@ Target Focus Areas: ${session.config.focusAreas.join(', ') || 'General'}
 Here are the results from their recent mock interview evaluation:
 - Overall AI Interviewer Score: ${evaluation.rubric?.overall}%
 - Candidate Summary: ${evaluation.candidateSummary || 'Not provided'}
-- The Introspection Agent determined the main failure pattern was: "${session.strategyUpdate?.whatFailed}"
+- The Introspection Agent determined the main failure pattern was: "${
+          session.strategyUpdate?.whatFailed
+        }"
   Root Cause: "${session.strategyUpdate?.whyItFailed}"
 
 Your task:
@@ -47,16 +49,16 @@ Write a highly actionable, structured, and encouraging Markdown study plan for t
 
 Structure your response exactly as follows:
 
-# 🎯 Personalized Study Plan
+# Personalized Study Plan
 Brief encouraging opening sentence.
 
-## 📉 Areas to Review
+## Areas to Review
 (List 2-3 specific topics they need to brush up on based on their weaknesses and failure patterns, explaining WHY it matters for a ${difficulty} ${role}.)
 
-## 🛠 Actionable Practice Plan
+## Actionable Practice Plan
 (List 2-3 concrete coding tasks, architectural designs, or behavioral exercises they can do this week to improve.)
 
-## 📚 Recommended Concepts
+## Recommended Concepts
 (List 3-5 specific technical concepts, APIs, or system design principles they should read about.)
 
 Do not include any JSON wrapping, just raw Markdown text.`;

@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { path: '/', label: 'Overview', icon: 'layout-dashboard' },
   { path: '/session', label: 'Initialize Session', icon: 'plus-circle' },
   { path: '/history', label: 'Session History', icon: 'clock' },
+  { path: '/strategy', label: 'Strategy Evolution', icon: 'brain-circuit' },
   { path: '/settings', label: 'System Config', icon: 'settings' },
   { path: '/interview', label: 'Active Session', icon: 'play', hidden: true },
   { path: '/analysis', label: 'Telemetry Analysis', icon: 'bar-chart-2', hidden: true },

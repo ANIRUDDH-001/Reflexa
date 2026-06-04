@@ -43,7 +43,7 @@ export async function renderHistory(container: HTMLElement): Promise<void> {
             : '<span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded">In Progress</span>';
 
         return `
-        <div class="panel p-4 mb-4 flex items-center justify-between hover:border-accent transition-colors">
+        <div class="panel p-4 mb-4 flex flex-wrap items-center justify-between gap-3 hover:border-accent transition-colors">
           <div>
             <div class="flex items-center gap-3 mb-1">
               <h4 class="font-semibold text-gray-900">${role} Interview</h4>

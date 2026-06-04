@@ -1,3 +1,5 @@
+import Chart from 'chart.js/auto';
+import { marked } from 'marked';
 import { api } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
@@ -5,8 +7,6 @@ import { createCard } from '../components/card';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 import { escapeHtml, sanitiseHtml } from '../utils/dom';
-import { marked } from 'marked';
-import Chart from 'chart.js/auto';
 
 function toTitleCase(str: string): string {
   if (!str) return str;
@@ -39,14 +39,12 @@ export async function renderAnalysis(
   let session: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let comparison: any = null;
-  let phoenixTraceUrl: string | null = null;
   try {
     const [sessionRes, compRes] = await Promise.all([
       api.getSession(currentSessionId),
       api.getComparison(currentSessionId).catch(() => ({ comparison: null })),
     ]);
     session = sessionRes.session;
-    phoenixTraceUrl = sessionRes.phoenixTraceUrl || null;
     comparison = compRes.comparison;
   } catch (e) {
     // Safe: static text
@@ -67,7 +65,7 @@ export async function renderAnalysis(
   container.innerHTML = '';
 
   const header = document.createElement('div');
-  header.className = 'view-header flex justify-between items-start';
+  header.className = 'view-header flex flex-wrap justify-between items-start';
 
   const roleName = session.config.role || 'Engineer';
   const styleName = session.config.style || 'Technical';
@@ -84,22 +82,18 @@ export async function renderAnalysis(
       styleName,
     )} • ${escapeHtml(timeElapsed)}</p>
       </div>
-      <div class="flex gap-2">
-        ${
-          phoenixTraceUrl
-            ? `<a href="${phoenixTraceUrl}" target="_blank" class="btn btn--secondary" style="text-decoration: none;">
-                <i data-lucide="external-link"></i>
-                <span>View Full Trace</span>
-              </a>`
-            : ''
-        }
+      <div class="flex flex-wrap items-center gap-2 mt-4">
+        <button id="view-internal-trace" class="btn btn--secondary">
+          <i data-lucide="activity"></i>
+          <span>View Traces & Spans</span>
+        </button>
         <button id="compare-toggle" class="btn btn--secondary">
           <i data-lucide="split"></i>
           <span>${isComparing ? 'View Current' : 'Compare Previous'}</span>
         </button>
         <div id="btn-share-container"></div>
         <div id="btn-target-container"></div>
-        <div id="btn-queue-container"></div>
+        <div id="btn-queue-header-container"></div>
       </div>
     `;
 
@@ -150,15 +144,24 @@ export async function renderAnalysis(
               const btn = e.currentTarget as HTMLButtonElement;
               const originalLabel = btn.innerHTML;
               btn.disabled = true;
-              btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i><span>Generating...</span>';
+              btn.innerHTML =
+                '<i data-lucide="loader-2" class="animate-spin"></i><span>Generating...</span>';
               refreshIcons();
-              
+
               try {
-                showToast({ title: 'Study Plan', message: 'Generating personalized curriculum...', type: 'info' });
+                showToast({
+                  title: 'Study Plan',
+                  message: 'Generating personalized curriculum...',
+                  type: 'info',
+                });
                 await api.generateStudyPlan(session.id);
                 window.location.reload();
               } catch (err) {
-                showToast({ title: 'Error', message: 'Failed to generate study plan', type: 'error' });
+                showToast({
+                  title: 'Error',
+                  message: 'Failed to generate study plan',
+                  type: 'error',
+                });
                 btn.disabled = false;
                 btn.innerHTML = originalLabel;
                 refreshIcons();
@@ -168,7 +171,7 @@ export async function renderAnalysis(
         );
       }
 
-      const queueContainer = document.getElementById('btn-queue-container');
+      const queueContainer = document.getElementById('btn-queue-header-container');
       if (queueContainer) {
         queueContainer.appendChild(
           createButton({
@@ -182,10 +185,73 @@ export async function renderAnalysis(
                 focusAreas: session.strategyUpdate?.newRules || session.config.focusAreas,
               };
               localStorage.setItem('reflexa_queued_session', JSON.stringify(queuedConfig));
-              showToast({ title: 'Queued', message: 'Next session will automatically apply these settings.', type: 'success' });
+              showToast({
+                title: 'Queued',
+                message: 'Next session will automatically apply these settings.',
+                type: 'success',
+              });
             },
           }),
         );
+      }
+      const traceBtn = document.getElementById('view-internal-trace');
+      if (traceBtn) {
+        traceBtn.addEventListener('click', async () => {
+          traceBtn.classList.add('btn--loading');
+          try {
+            const data = await api.getTraceSpans(currentSessionId!);
+            const spans = data?.spans || [];
+
+            let spansHtml = '<div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">';
+            for (const span of spans) {
+              const latency = Math.round(span.latencyMs || 0);
+              const attributesStr = span.attributes || '{}';
+              let attrs: any = {};
+              try {
+                attrs =
+                  typeof attributesStr === 'string' ? JSON.parse(attributesStr) : attributesStr;
+              } catch (e) {
+                /* ignore */
+              }
+
+              const model = attrs['llm.model'] || '-';
+              const tokens = attrs['llm.token_count.total'] || '-';
+              const icon = span.name === 'LLM_GENERATE' ? 'cpu' : 'activity';
+
+              spansHtml += `
+                <div class="p-4 bg-white border rounded-lg shadow-sm">
+                  <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-semibold text-gray-900 flex items-center gap-2"><i data-lucide="${icon}" style="width: 16px"></i> ${escapeHtml(
+                span.name,
+              )}</h4>
+                    <span class="text-sm ${
+                      latency > 2000 ? 'text-warning' : 'text-success'
+                    } font-medium">${latency} ms</span>
+                  </div>
+                  <div class="text-xs text-gray-500 grid grid-cols-2 gap-2 mt-2">
+                    <div><span class="font-medium">Status:</span> ${escapeHtml(
+                      span.statusMessage || 'OK',
+                    )}</div>
+                    <div><span class="font-medium">Model:</span> ${escapeHtml(model)}</div>
+                    <div><span class="font-medium">Tokens:</span> ${tokens}</div>
+                  </div>
+                </div>
+              `;
+            }
+            spansHtml += '</div>';
+
+            if (spans.length === 0) {
+              spansHtml =
+                '<div class="text-gray-500 text-center p-4">No spans found for this session.</div>';
+            }
+
+            openModal('Telemetry Spans', spansHtml, true);
+          } catch (e) {
+            showToast({ title: 'Error', message: 'Failed to load trace spans', type: 'error' });
+          } finally {
+            traceBtn.classList.remove('btn--loading');
+          }
+        });
       }
     }, 0);
   };
@@ -308,10 +374,12 @@ export async function renderAnalysis(
           candidateGrid.appendChild(card);
         }
       });
-      
+
       const chartContainer = document.createElement('div');
-      chartContainer.className = 'bg-white p-4 rounded-lg border flex flex-col items-center justify-center animate-fade-in-up';
-      chartContainer.innerHTML = '<canvas id="skillRadarChart" width="100%" height="100%"></canvas>';
+      chartContainer.className =
+        'bg-white p-4 rounded-lg border flex flex-col items-center justify-center animate-fade-in-up';
+      chartContainer.innerHTML =
+        '<canvas id="skillRadarChart" width="100%" height="100%"></canvas>';
 
       candidateLayout.appendChild(candidateGrid);
       candidateLayout.appendChild(chartContainer);
@@ -322,23 +390,29 @@ export async function renderAnalysis(
       setTimeout(() => {
         const canvas = document.getElementById('skillRadarChart') as HTMLCanvasElement;
         if (canvas) {
-          const labels = candidateScores.filter(s => s.key !== 'candidate_overall').map(s => s.label);
-          const data = candidateScores.filter(s => s.key !== 'candidate_overall').map(s => s.score);
+          const labels = candidateScores
+            .filter((s) => s.key !== 'candidate_overall')
+            .map((s) => s.label);
+          const data = candidateScores
+            .filter((s) => s.key !== 'candidate_overall')
+            .map((s) => s.score);
           new Chart(canvas, {
             type: 'radar',
             data: {
               labels,
-              datasets: [{
-                label: 'Skill Proficiency',
-                data,
-                backgroundColor: 'rgba(13, 148, 136, 0.2)',
-                borderColor: '#0d9488',
-                pointBackgroundColor: '#fff',
-                pointBorderColor: '#0d9488',
-                pointHoverBackgroundColor: '#0d9488',
-                pointHoverBorderColor: '#fff',
-                borderWidth: 2
-              }]
+              datasets: [
+                {
+                  label: 'Skill Proficiency',
+                  data,
+                  backgroundColor: 'rgba(13, 148, 136, 0.2)',
+                  borderColor: '#0d9488',
+                  pointBackgroundColor: '#fff',
+                  pointBorderColor: '#0d9488',
+                  pointHoverBackgroundColor: '#0d9488',
+                  pointHoverBorderColor: '#fff',
+                  borderWidth: 2,
+                },
+              ],
             },
             options: {
               responsive: true,
@@ -349,13 +423,13 @@ export async function renderAnalysis(
                   grid: { color: 'rgba(0,0,0,0.1)' },
                   pointLabels: {
                     font: { family: 'Inter', size: 12 },
-                    color: '#6b7280'
+                    color: '#6b7280',
                   },
-                  ticks: { display: false, max: 100, min: 0 }
-                }
+                  ticks: { display: false, max: 100, min: 0 },
+                },
               },
-              plugins: { legend: { display: false } }
-            }
+              plugins: { legend: { display: false } },
+            },
           });
         }
       }, 0);
@@ -447,27 +521,34 @@ export async function renderAnalysis(
   `;
   container.appendChild(modalOverlay);
 
-  const openModal = (title: string, rawTrace: string) => {
+  const openModal = (title: string, rawContent: string, isHtml: boolean = false) => {
     document.getElementById('modal-title')!.textContent = title;
     const bodyEl = document.getElementById('modal-body')!;
-    
+
+    if (isHtml) {
+      bodyEl.innerHTML = rawContent;
+      modalOverlay.classList.add('modal-overlay--open');
+      refreshIcons();
+      return;
+    }
+
     // Attempt to parse AI: and User: prefixes from trace string to build chat bubbles
-    const lines = rawTrace.split(/\n+/);
+    const lines = rawContent.split(/\n+/);
     let chatHtml = '<div class="chat-area" style="padding: 0; background: transparent;">';
     let addedBubbles = false;
-    
+
     for (const line of lines) {
       if (!line.trim()) continue;
-      
+
       const isAi = line.startsWith('AI:');
       const isUser = line.startsWith('User:');
-      
+
       if (isAi || isUser) {
         addedBubbles = true;
         const roleStr = isAi ? 'ai' : 'user';
         const iconStr = isAi ? 'bot' : 'user';
         const msgText = line.replace(/^(AI|User):\s*/, '');
-        
+
         chatHtml += `
           <div class="message message--${roleStr} animate-fade-in-up" style="margin-bottom: var(--space-4);">
             <div class="message__avatar"><i data-lucide="${iconStr}"></i></div>
@@ -482,14 +563,16 @@ export async function renderAnalysis(
       }
     }
     chatHtml += '</div>';
-    
+
     if (addedBubbles) {
       bodyEl.innerHTML = chatHtml;
     } else {
       // Complete fallback
-      bodyEl.innerHTML = `<div class="p-4 bg-gray-50 rounded text-sm text-gray-700 whitespace-pre-wrap">${sanitiseHtml(rawTrace)}</div>`;
+      bodyEl.innerHTML = `<div class="p-4 bg-gray-50 rounded text-sm text-gray-700 whitespace-pre-wrap">${sanitiseHtml(
+        rawContent,
+      )}</div>`;
     }
-    
+
     modalOverlay.classList.add('modal-overlay--open');
     refreshIcons();
   };
@@ -563,7 +646,7 @@ export async function renderAnalysis(
     const traceBtn = content.querySelector('.trace-btn');
     traceBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
-      openModal('Trace Detail', traceData);
+      openModal('Trace Detail', traceData, true);
     });
 
     wrapper.appendChild(header);
@@ -724,22 +807,22 @@ export async function renderAnalysis(
   const renderStudyPlanContent = () => {
     if (!session.evaluation?.studyPlan) return;
     studyPlanContainer.innerHTML = '';
-    
+
     // Convert Markdown to HTML
     const rawHtml = marked.parse(session.evaluation.studyPlan.contentMarkdown);
     const cleanHtml = sanitiseHtml(rawHtml as string);
 
     const planCard = document.createElement('div');
-    planCard.className = 'bg-white p-8 rounded-lg border border-accent/20 shadow-sm prose prose-accent max-w-none';
+    planCard.className = 'prose';
     planCard.innerHTML = cleanHtml;
-    
+
     studyPlanContainer.appendChild(
       createCard({
         title: 'Your Personalized Study Plan',
         content: planCard,
-      })
+      }),
     );
-    
+
     // Hide Target Weaknesses button if study plan already generated
     const targetBtn = document.getElementById('btn-target-container');
     if (targetBtn) targetBtn.style.display = 'none';
@@ -753,9 +836,14 @@ export async function renderAnalysis(
       stratBtn.addEventListener('click', () => {
         openModal(
           'Next Session Strategy Profile',
-          '<div class="bg-gray-50 p-4 rounded-md border text-sm text-gray-800 font-mono" style="white-space: pre-wrap">SYSTEM PROMPT OVERRIDES:\n' +
-            strategyOverrides.map((o: string) => '- ' + escapeHtml(o)).join('\n') +
-            '</div>',
+          '<div style="background: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 14px; color: #374151;">' +
+            '<h4 style="font-weight: 600; margin-bottom: 12px; color: #111827;">Strategy Overrides for Next Session</h4>' +
+            '<ul style="list-style: disc; padding-left: 20px; margin: 0;">' +
+            strategyOverrides
+              .map((o: string) => '<li style="margin-bottom: 6px;">' + escapeHtml(o) + '</li>')
+              .join('') +
+            '</ul></div>',
+          true,
         );
       });
     }

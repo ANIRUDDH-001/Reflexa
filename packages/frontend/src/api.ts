@@ -98,6 +98,12 @@ export const api = {
     return res.json();
   },
 
+  async getTraceSpans(id: string) {
+    const res = await apiFetch(`/session/${id}/trace-spans`);
+    if (!res.ok) throw new Error('Failed to fetch trace spans');
+    return res.json();
+  },
+
   async submitTurn(id: string, text: string) {
     const res = await apiFetch(`/session/${id}/turn`, {
       method: 'POST',
@@ -133,6 +139,25 @@ export async function getLatestStrategyInfo(): Promise<{
 } | null> {
   try {
     const res = await apiFetch(`/strategy/latest`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getStrategyEvolution(): Promise<{
+  evolution: Array<{
+    sessionId: string;
+    endedAt: string;
+    whatFailed: string;
+    newRules: string[];
+    strategyVersion: string;
+    overallScore: number;
+  }>;
+} | null> {
+  try {
+    const res = await apiFetch('/strategy/evolution');
     if (!res.ok) return null;
     return res.json();
   } catch {

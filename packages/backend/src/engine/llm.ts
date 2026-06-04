@@ -333,7 +333,7 @@ export async function* processTurnStream(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Fallback silently for any error (e.g. 503, 429, quota, 500, timeout)
-      console.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
+      logger.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
       continue;
     }
   }

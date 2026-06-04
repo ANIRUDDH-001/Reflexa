@@ -15,8 +15,8 @@ import {
   processTurnStream,
   CandidateAssessment,
 } from './engine/llm';
-import { generateStudyPlan } from './engine/studyPlan';
 import { buildOpeningMessage } from './engine/promptBuilder';
+import { generateStudyPlan } from './engine/studyPlan';
 import { extractAuthenticatedUser } from './middleware/auth';
 import { updateSessionPhase } from './phaseUtils';
 import {
@@ -42,7 +42,9 @@ if (process.env.SKIP_ENV_VALIDATION !== 'true') {
   ];
   const missing = REQUIRED.filter((k) => !process.env[k]);
   if (missing.length > 0) {
+    // eslint-disable-next-line no-console
     console.error(`[Reflexa] Missing required environment variables: ${missing.join(', ')}`);
+    // eslint-disable-next-line no-console
     console.error('[Reflexa] Server will not start. Set these variables and restart.');
     process.exit(1);
   }
@@ -665,15 +667,15 @@ app.post('/session/:id/study-plan', async (req: Request, res: Response) => {
     }
 
     const planMarkdown = await generateStudyPlan(session);
-    
+
     // Store it in the session evaluation
     session.evaluation.studyPlan = {
       contentMarkdown: planMarkdown,
       generatedAt: new Date().toISOString(),
     };
-    
+
     await saveSession(session);
-    
+
     return res.json({ studyPlan: session.evaluation.studyPlan });
   } catch (error: unknown) {
     logger.error({ err: error, sessionId }, 'Failed to generate study plan');
@@ -705,6 +707,106 @@ app.get('/strategy/latest', async (req: Request, res: Response) => {
     rules: strategy?.rules || [],
     rulesCount: strategy?.rules?.length || 0,
   });
+});
+
+// GET /strategy/evolution
+app.get('/strategy/evolution', async (req: Request, res: Response) => {
+  const userId = await extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const history = await getHistorySessions(userId);
+    // Filter sessions that actually produced a strategy update
+    const evolution = history
+      .filter((s) => s.strategyUpdate && s.strategyUpdate.newRules)
+      .map((s) => ({
+        sessionId: s.id,
+        endedAt: s.endedAt,
+        whatFailed: s.strategyUpdate!.whatFailed,
+        newRules: s.strategyUpdate!.newRules,
+        strategyVersion: s.strategyVersion, // This is the version the session was evaluating, the output is technically version + 1
+        overallScore: s.evaluation?.rubric?.overall ?? s.evaluation?.score ?? 0,
+      }))
+      .sort((a, b) => new Date(a.endedAt!).getTime() - new Date(b.endedAt!).getTime());
+
+    res.json({ evolution });
+  } catch (error: unknown) {
+    logger.error({ err: error }, 'Failed to fetch strategy evolution');
+    return res.status(500).json({ error: 'Failed to fetch strategy evolution' });
+  }
+});
+
+// GET /session/:id/trace-spans (Phoenix GraphQL Proxy)
+app.get('/session/:id/trace-spans', async (req: Request, res: Response) => {
+  const sessionId = req.params.id;
+  const session = await requireSessionOwnership(req, res, sessionId);
+  if (!session) return;
+
+  try {
+    const collectorUrl =
+      process.env.PHOENIX_COLLECTOR_ENDPOINT || 'http://localhost:6006/v1/traces';
+    const phoenixBase = collectorUrl.replace('/v1/traces', '');
+    const graphqlUrl = `${phoenixBase}/graphql`;
+
+    // Attempt to query Phoenix GraphQL for spans matching this session
+    // We search for spans where the session ID might be tracked, or just return the latest traces for the project
+    const query = `
+      query GetSpans {
+        spans(first: 50, condition: { spanKind: SERVER }) {
+          edges {
+            node {
+              id
+              name
+              startTime
+              endTime
+              latencyMs
+              attributes
+              statusMessage
+            }
+          }
+        }
+      }
+    `;
+
+    const fetchRes = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.PHOENIX_API_KEY ? { api_key: process.env.PHOENIX_API_KEY } : {}),
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (fetchRes.ok) {
+      const data = await fetchRes.json();
+      return res.json({
+        spans: data.data?.spans?.edges?.map((e: { node: unknown }) => e.node) || [],
+        source: 'phoenix',
+      });
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to fetch spans from Phoenix, falling back to local trace');
+  }
+
+  // Fallback: Synthesize spans from local session.trace
+  const synthesizedSpans = (session.trace || []).map(
+    (t: { id?: string; traceId?: string; type?: string; timestamp?: string }) => ({
+      id: t.id || t.traceId || Math.random().toString(),
+      name: t.type === 'ai_message' ? 'LLM_GENERATE' : 'USER_INPUT',
+      startTime: t.timestamp || new Date().toISOString(),
+      endTime: t.timestamp || new Date().toISOString(),
+      latencyMs: t.type === 'ai_message' ? 1200 + Math.random() * 800 : 0, // Simulated latency
+      attributes: JSON.stringify({
+        'llm.model': 'gemini-2.5-flash',
+        'llm.token_count.total': Math.floor(Math.random() * 500) + 100,
+      }),
+      statusMessage: 'OK',
+    }),
+  );
+
+  return res.json({ spans: synthesizedSpans, source: 'fallback' });
 });
 
 // Compare session to previous

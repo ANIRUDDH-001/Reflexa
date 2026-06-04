@@ -191,14 +191,20 @@ export async function getHistorySessions(userId: string): Promise<
     id: string;
     status: string;
     startedAt: string;
+    endedAt?: string;
     config: BackendSessionState['config'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     evaluation: any | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    strategyUpdate?: any;
+    strategyVersion?: string;
   }>
 > {
   const { data, error } = await db()
     .from('sessions')
-    .select('id, status, started_at, config, evaluation')
+    .select(
+      'id, status, started_at, ended_at, config, evaluation, strategy_update, strategy_version',
+    )
     .eq('user_id', userId)
     .order('started_at', { ascending: false });
 
@@ -212,8 +218,11 @@ export async function getHistorySessions(userId: string): Promise<
       id: r.id,
       status: r.status,
       startedAt: r.started_at,
+      endedAt: r.ended_at ?? undefined,
       config: r.config,
       evaluation: r.evaluation ?? undefined,
+      strategyUpdate: r.strategy_update ?? undefined,
+      strategyVersion: r.strategy_version ?? undefined,
     };
   });
 }
