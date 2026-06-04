@@ -308,6 +308,9 @@ export async function renderAnalysis(
 
     section2.appendChild(scoreGrid);
     scoreGridContainer.appendChild(section2);
+
+    // Re-render lucide icons for the new section heading elements
+    refreshIcons();
   };
   renderScores();
 
@@ -394,7 +397,7 @@ export async function renderAnalysis(
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  evaluation.weakTurns.forEach((wt: any) => {
+  (evaluation.weakTurns || []).forEach((wt: any) => {
     // Build trace detail from real session data instead of LLM-generated traceData
     let traceContent = '';
     const turnMatch = wt.turnLabel?.match(/(\d+)/);
@@ -450,9 +453,8 @@ export async function renderAnalysis(
   rightCol.className = 'flex flex-col gap-6';
 
   const strategyContent = document.createElement('div');
-  const stratList = evaluation.strategyOverrides
-    .map((s: string) => '<li>' + escapeHtml(s) + '</li>')
-    .join('');
+  const strategyOverrides: string[] = evaluation.strategyOverrides || [];
+  const stratList = strategyOverrides.map((s: string) => '<li>' + escapeHtml(s) + '</li>').join('');
 
   // Safe: dynamic list items escaped
   strategyContent.innerHTML = `
@@ -518,7 +520,7 @@ export async function renderAnalysis(
         openModal(
           'Next Session Strategy Profile',
           '<div class="bg-gray-50 p-4 rounded-md border text-sm text-gray-800 font-mono" style="white-space: pre-wrap">SYSTEM PROMPT OVERRIDES:\n' +
-            evaluation.strategyOverrides.map((o: string) => '- ' + escapeHtml(o)).join('\n') +
+            strategyOverrides.map((o: string) => '- ' + escapeHtml(o)).join('\n') +
             '</div>',
         );
       });

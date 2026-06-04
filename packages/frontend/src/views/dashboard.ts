@@ -34,12 +34,20 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const latestSession = sessions[0] as any; // already sorted DESC by startedAt
     const latestScore: number | null =
-      latestSession?.evaluation?.rubric?.overall ?? latestSession?.evaluation?.score ?? null;
+      latestSession?.evaluation?.candidateRubric?.overall ??
+      latestSession?.evaluation?.rubric?.overall ??
+      latestSession?.evaluation?.score ??
+      null;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scores = sessions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((s: any) => s.evaluation?.rubric?.overall ?? s.evaluation?.score)
+      .map(
+        (s: any) =>
+          s.evaluation?.candidateRubric?.overall ??
+          s.evaluation?.rubric?.overall ??
+          s.evaluation?.score,
+      )
       .filter((v: unknown): v is number => typeof v === 'number');
     const avgScore =
       scores.length > 0
@@ -55,13 +63,13 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
           <p class="text-3xl font-bold text-gray-900">${totalSessions}</p>
         </div>
         <div class="panel p-6 text-center" style="background: var(--color-accent-50); border: 1px solid var(--color-accent-200);">
-          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Latest Score</p>
+          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Latest Candidate Score</p>
           <p class="text-3xl font-bold text-gray-900">${
             latestScore !== null ? latestScore + '%' : '—'
           }</p>
         </div>
         <div class="panel p-6 text-center" style="background: var(--color-accent-50); border: 1px solid var(--color-accent-200);">
-          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Average Score</p>
+          <p class="text-xs font-semibold text-accent" style="margin-bottom:var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;">Avg Candidate Score</p>
           <p class="text-3xl font-bold text-gray-900">${
             avgScore !== null ? avgScore + '%' : '—'
           }</p>
@@ -75,7 +83,10 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
       .map((s: any, idx: number) => {
         const date = escapeHtml(new Date(s.startedAt).toLocaleDateString());
         const role = escapeHtml(s.config?.role || 'Engineer');
-        const scoreVal = s.evaluation?.rubric?.overall ?? s.evaluation?.score;
+        const scoreVal =
+          s.evaluation?.candidateRubric?.overall ??
+          s.evaluation?.rubric?.overall ??
+          s.evaluation?.score;
         const score = scoreVal !== undefined ? escapeHtml(scoreVal + '%') : 'Pending';
 
         // Add staggered delay
