@@ -10,6 +10,7 @@
   "dependencies": {
     "@reflexa/shared": "file:../shared",
     "@supabase/supabase-js": "^2.106.2",
+    "chart.js": "^4.5.1",
     "marked": "^18.0.4"
   },
   "devDependencies": {

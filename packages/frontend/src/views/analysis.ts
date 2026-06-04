@@ -6,6 +6,7 @@ import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
 import { escapeHtml, sanitiseHtml } from '../utils/dom';
 import { marked } from 'marked';
+import Chart from 'chart.js/auto';
 
 function toTitleCase(str: string): string {
   if (!str) return str;
@@ -267,9 +268,11 @@ export async function renderAnalysis(
         section.appendChild(summaryEl);
       }
 
+      const candidateLayout = document.createElement('div');
+      candidateLayout.className = 'grid grid-cols-1 md:grid-cols-2 gap-8 mb-6';
+
       const candidateGrid = document.createElement('div');
-      candidateGrid.className = 'grid gap-4 mb-6';
-      candidateGrid.style.display = 'grid';
+      candidateGrid.className = 'grid gap-4';
       candidateGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
 
       const candidateScores = [
@@ -299,13 +302,63 @@ export async function renderAnalysis(
       candidateScores.forEach((s) => {
         const card = renderScoreCard(s.label, s.score, s.key, 'bg-white');
         if (card) {
-          // Add accent left-border to candidate cards
-          card.style.borderLeft = '3px solid var(--color-accent)';
+          // Add accent left-border and hover animation to candidate cards
+          card.style.borderLeft = '4px solid var(--color-accent)';
+          card.classList.add('animate-hover-lift');
           candidateGrid.appendChild(card);
         }
       });
-      section.appendChild(candidateGrid);
+      
+      const chartContainer = document.createElement('div');
+      chartContainer.className = 'bg-white p-4 rounded-lg border flex flex-col items-center justify-center animate-fade-in-up';
+      chartContainer.innerHTML = '<canvas id="skillRadarChart" width="100%" height="100%"></canvas>';
+
+      candidateLayout.appendChild(candidateGrid);
+      candidateLayout.appendChild(chartContainer);
+      section.appendChild(candidateLayout);
       scoreGridContainer.appendChild(section);
+
+      // Render Radar Chart
+      setTimeout(() => {
+        const canvas = document.getElementById('skillRadarChart') as HTMLCanvasElement;
+        if (canvas) {
+          const labels = candidateScores.filter(s => s.key !== 'candidate_overall').map(s => s.label);
+          const data = candidateScores.filter(s => s.key !== 'candidate_overall').map(s => s.score);
+          new Chart(canvas, {
+            type: 'radar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Skill Proficiency',
+                data,
+                backgroundColor: 'rgba(13, 148, 136, 0.2)',
+                borderColor: '#0d9488',
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#0d9488',
+                pointHoverBackgroundColor: '#0d9488',
+                pointHoverBorderColor: '#fff',
+                borderWidth: 2
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                r: {
+                  angleLines: { color: 'rgba(0,0,0,0.1)' },
+                  grid: { color: 'rgba(0,0,0,0.1)' },
+                  pointLabels: {
+                    font: { family: 'Inter', size: 12 },
+                    color: '#6b7280'
+                  },
+                  ticks: { display: false, max: 100, min: 0 }
+                }
+              },
+              plugins: { legend: { display: false } }
+            }
+          });
+        }
+      }, 0);
     }
 
     // ── Interviewer Calibration Section ──
@@ -394,9 +447,49 @@ export async function renderAnalysis(
   `;
   container.appendChild(modalOverlay);
 
-  const openModal = (title: string, htmlContent: string) => {
+  const openModal = (title: string, rawTrace: string) => {
     document.getElementById('modal-title')!.textContent = title;
-    document.getElementById('modal-body')!.innerHTML = sanitiseHtml(htmlContent);
+    const bodyEl = document.getElementById('modal-body')!;
+    
+    // Attempt to parse AI: and User: prefixes from trace string to build chat bubbles
+    const lines = rawTrace.split(/\n+/);
+    let chatHtml = '<div class="chat-area" style="padding: 0; background: transparent;">';
+    let addedBubbles = false;
+    
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      
+      const isAi = line.startsWith('AI:');
+      const isUser = line.startsWith('User:');
+      
+      if (isAi || isUser) {
+        addedBubbles = true;
+        const roleStr = isAi ? 'ai' : 'user';
+        const iconStr = isAi ? 'bot' : 'user';
+        const msgText = line.replace(/^(AI|User):\s*/, '');
+        
+        chatHtml += `
+          <div class="message message--${roleStr} animate-fade-in-up" style="margin-bottom: var(--space-4);">
+            <div class="message__avatar"><i data-lucide="${iconStr}"></i></div>
+            <div class="message__content">
+              <div class="message__bubble">${escapeHtml(msgText)}</div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Fallback for lines that don't match the pattern
+        chatHtml += `<div class="text-gray-600 text-sm mb-2">${escapeHtml(line)}</div>`;
+      }
+    }
+    chatHtml += '</div>';
+    
+    if (addedBubbles) {
+      bodyEl.innerHTML = chatHtml;
+    } else {
+      // Complete fallback
+      bodyEl.innerHTML = `<div class="p-4 bg-gray-50 rounded text-sm text-gray-700 whitespace-pre-wrap">${sanitiseHtml(rawTrace)}</div>`;
+    }
+    
     modalOverlay.classList.add('modal-overlay--open');
     refreshIcons();
   };

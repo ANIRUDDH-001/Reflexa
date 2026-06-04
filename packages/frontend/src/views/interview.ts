@@ -60,10 +60,10 @@ export async function renderInterview(
 
   const headerInfo = document.createElement('div');
   headerInfo.className = 'flex items-center gap-3';
-  // Safe: hardcoded static HTML
   headerInfo.innerHTML = `
-    <div class="font-semibold text-gray-900" id="header-role">Loading...</div>
-    <div id="header-badge"></div>
+    <div class="font-bold text-gray-900 tracking-tight" id="header-role">Loading...</div>
+    <div id="header-phase" class="ml-2 animate-fade-in-up"></div>
+    <div id="header-progress" class="text-sm font-medium text-gray-500 ml-4 hidden md:block"></div>
   `;
 
   const headerActions = document.createElement('div');
@@ -447,6 +447,18 @@ export async function renderInterview(
     }
 
     refreshIcons();
+    // Also update header phase and progress
+    const phaseEl = document.getElementById('header-phase');
+    if (phaseEl) {
+      phaseEl.innerHTML = createBadge({
+        label: currentPhase.replace('_', ' ').toUpperCase(),
+        variant: 'accent',
+      }).outerHTML;
+    }
+    const progEl = document.getElementById('header-progress');
+    if (progEl) {
+      progEl.textContent = `Turn ${currentTurn} / ${currentMaxTurns}`;
+    }
   };
 
   // Initial load
@@ -457,11 +469,6 @@ export async function renderInterview(
       document.getElementById('header-role')!.textContent = (
         session.config.role || 'Engineer'
       ).toUpperCase();
-      // Safe: createBadge returns safe DOM element outerHTML
-      document.getElementById('header-badge')!.innerHTML = createBadge({
-        label: session.config.style || 'Technical',
-        variant: 'neutral',
-      }).outerHTML;
 
       currentTurn = session.turnCount || 0;
       currentMaxTurns = parseInt(session.config.timeLimit || '20', 10);
