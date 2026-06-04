@@ -49,10 +49,13 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
     },
   });
 
-  // Handle 401 by redirecting to login
+  // Handle auth errors by redirecting to login
   if (response.status === 401) {
     window.location.hash = '#/login';
     throw new Error('Unauthorized — redirecting to login');
+  }
+  if (response.status === 403) {
+    throw new Error('Forbidden — you do not have access to this resource');
   }
 
   return response;
@@ -148,7 +151,12 @@ export async function* sendTurnStream(
     return;
   }
 
-  const reader = response.body!.getReader();
+  if (!response.body) {
+    yield { type: 'error', message: 'Streaming not supported — response body is null' };
+    return;
+  }
+
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 

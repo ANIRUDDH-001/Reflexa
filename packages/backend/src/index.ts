@@ -507,8 +507,10 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
   if (session.status === 'completed') {
     logger.info({ sessionId: session.id }, 'Session already completed — returning existing state');
     return res.json({
-      session,
-      message: 'Session was already completed. Returning existing evaluation.',
+      status: 'completed' as const,
+      analysisSummary: session.evaluation?.summary ?? '',
+      strategySummary: session.strategyUpdate?.whatToDoNextTime ?? '',
+      traceId: session.evaluation?.traceId ?? '',
     });
   }
 
@@ -721,7 +723,24 @@ export { app };
 
 const PORT = process.env.PORT || 8000;
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`Server started on port ${PORT}`);
   });
+
+  // Graceful shutdown for containerized deployments
+  const shutdown = (signal: string) => {
+    logger.info(`Received ${signal}, shutting down gracefully...`);
+    server.close(() => {
+      logger.info('Server closed');
+      process.exit(0);
+    });
+    // Force shutdown after 10 seconds if connections aren't drained
+    setTimeout(() => {
+      logger.warn('Forced shutdown after timeout');
+      process.exit(1);
+    }, 10_000);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

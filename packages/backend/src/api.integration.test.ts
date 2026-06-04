@@ -255,7 +255,7 @@ describe('API Integration Tests', () => {
         .post('/session/demo-session-1/end')
         .set('X-User-Id', 'test-user');
       expect(res.status).toBe(200);
-      expect(res.body.message).toContain('already completed');
+      expect(res.body.status).toBe('completed');
     });
   });
 

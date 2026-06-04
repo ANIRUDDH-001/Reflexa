@@ -109,9 +109,9 @@ describe('assemblePrompt – sanitization', () => {
     expect(prompt).not.toContain('<b>');
     expect(prompt).not.toContain('</b>');
     expect(prompt).not.toContain('<img');
-    // The sanitized text should still be present without the angle brackets or slashes
-    expect(prompt).toContain("scriptalert('xss')script");
-    expect(prompt).toContain('bHardb');
+    // The sanitized text should still be present without the angle brackets
+    expect(prompt).toContain("scriptalert('xss')/script");
+    expect(prompt).toContain('bHard/b');
   });
 });
 
@@ -121,8 +121,12 @@ describe('sanitiseInput', () => {
     expect(sanitiseInput('<script>alert(1)</script>')).not.toContain('>');
   });
 
-  it('strips closing slash preventing tag injection', () => {
-    expect(sanitiseInput('</user_config>')).not.toContain('/');
+  it('strips angle brackets but preserves slashes', () => {
+    // Angle brackets are stripped, slash is preserved (for roles like Frontend/Backend)
+    const result = sanitiseInput('</user_config>');
+    expect(result).not.toContain('<');
+    expect(result).not.toContain('>');
+    expect(result).toContain('/'); // slash is now preserved
   });
 
   it('strips newlines preventing multi-line prompt injection', () => {

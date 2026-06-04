@@ -4,7 +4,7 @@ function sanitiseInput(value: unknown): string {
   if (value === null || value === undefined) return '';
   return String(value)
     .replace(/[\r\n\t]/g, ' ') // collapse structural chars to spaces first
-    .replace(/[<>/{}\0+]/g, '') // strip injection chars
+    .replace(/[<>{}\0+]/g, '') // strip injection chars
     .replace(/\s+/g, ' ') // collapse remaining whitespace
     .trim()
     .slice(0, 200); // enforce max length

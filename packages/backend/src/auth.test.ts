@@ -215,7 +215,7 @@ describe('Authorization: POST /session/:id/end', () => {
     (getSession as any).mockResolvedValue(makeSession(OWNER_ID, 'completed'));
     const res = await request(app).post(`/session/${SESSION_ID}/end`).set('X-User-Id', OWNER_ID);
     expect(res.status).toBe(200);
-    expect(res.body.message).toMatch(/already completed/i);
+    expect(res.body.status).toBe('completed');
   });
 
   it('returns 400 when session is abandoned', async () => {
