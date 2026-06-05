@@ -28,22 +28,11 @@ registerInstrumentations({
 // eslint-disable-next-line no-console
 console.log('[Phoenix] OpenTelemetry SDK started successfully with phoenix-otel');
 
-process.on('SIGTERM', async () => {
+export async function shutdownTelemetry(): Promise<void> {
   // eslint-disable-next-line no-console
   await shutdownMcpClient().catch(console.error);
   if (provider && provider.forceFlush) {
     // eslint-disable-next-line no-console
     await provider.forceFlush().catch(console.error);
   }
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  // eslint-disable-next-line no-console
-  await shutdownMcpClient().catch(console.error);
-  if (provider && provider.forceFlush) {
-    // eslint-disable-next-line no-console
-    await provider.forceFlush().catch(console.error);
-  }
-  process.exit(0);
-});
+}

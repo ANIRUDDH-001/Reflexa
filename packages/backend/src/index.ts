@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { randomUUID } from 'crypto';
-import './telemetry';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
 import express, { Request, Response, NextFunction } from 'express';
@@ -28,6 +27,7 @@ import {
   getHistorySessions,
 } from './state/db';
 import { BackendSessionState } from './state/types';
+import { shutdownTelemetry } from './telemetry';
 
 // ── Startup environment validation ────────────────────────────
 // CRITICAL variables: server will not start without these.
@@ -892,19 +892,29 @@ if (require.main === module) {
   });
 
   // Graceful shutdown for containerized deployments
-  const shutdown = (signal: string) => {
-    logger.info(`Received ${signal}, shutting down gracefully...`);
-    server.close(() => {
-      logger.info('Server closed');
-      process.exit(0);
+  const gracefulShutdown = async (signal: string): Promise<void> => {
+    logger.info({ signal }, 'Received shutdown signal — starting graceful shutdown');
+
+    // 1. Stop accepting new requests
+    server.close(async () => {
+      try {
+        // 2. Flush all pending Phoenix traces
+        await shutdownTelemetry();
+        logger.info('Telemetry flushed — exiting');
+      } catch (err) {
+        logger.error({ err }, 'Error during telemetry shutdown');
+      } finally {
+        process.exit(0);
+      }
     });
-    // Force shutdown after 10 seconds if connections aren't drained
+
+    // Force exit after 10s if graceful shutdown hangs
     setTimeout(() => {
-      logger.warn('Forced shutdown after timeout');
+      logger.warn('Graceful shutdown timed out — forcing exit');
       process.exit(1);
     }, 10_000);
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
