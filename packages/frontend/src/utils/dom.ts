@@ -91,5 +91,35 @@ export function sanitiseHtml(value: unknown): string {
     el.replaceWith(text);
   });
 
+  // Strip javascript: protocol from href/src attributes
+  const allElements = template.content.querySelectorAll('[href],[src]');
+  allElements.forEach((el) => {
+    const href = el.getAttribute('href');
+    if (href && /^\s*javascript:/i.test(href)) {
+      el.removeAttribute('href');
+    }
+    const src = el.getAttribute('src');
+    if (src && /^\s*javascript:/i.test(src)) {
+      el.removeAttribute('src');
+    }
+  });
+
+  // Strip style attributes from non-code elements (allow only on code/pre for highlighting)
+  // style on arbitrary elements enables CSS injection and UI spoofing
+  const styledElements = template.content.querySelectorAll('[style]');
+  styledElements.forEach((el) => {
+    const tag = el.tagName.toLowerCase();
+    if (tag !== 'code' && tag !== 'pre' && tag !== 'span') {
+      el.removeAttribute('style');
+    }
+  });
+
+  // Force safe link attributes on all <a> tags
+  const links = template.content.querySelectorAll('a[href]');
+  links.forEach((link) => {
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  });
+
   return template.innerHTML;
 }

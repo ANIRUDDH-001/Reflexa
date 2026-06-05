@@ -57,6 +57,11 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 let _sessionsCache: any = null;
 let _sessionsCacheTime: number = 0;
 
+export function invalidateSessionsCache(): void {
+  _sessionsCache = null;
+  _sessionsCacheTime = 0;
+}
+
 export const api = {
   async getConfig() {
     const res = await apiFetch('/config');

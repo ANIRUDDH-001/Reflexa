@@ -1,4 +1,4 @@
-import { api, sendTurnStream, PHOENIX_TRACE_BASE } from '../api';
+import { api, sendTurnStream, PHOENIX_TRACE_BASE, invalidateSessionsCache } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
@@ -90,6 +90,7 @@ export async function renderInterview(
       endBtn.classList.add('btn--loading');
       try {
         await api.endSession(currentSessionId);
+        invalidateSessionsCache();
         window.location.hash = '#/analysis/' + currentSessionId;
       } catch (e) {
         showToast({ title: 'Error', message: 'Failed to terminate session', type: 'error' });

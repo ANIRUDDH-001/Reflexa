@@ -855,27 +855,44 @@ app.get('/session/:id/compare', async (req: Request, res: Response) => {
 
   const previousSession = history[currentIndex + 1];
 
+  const currentCandRubric = session.evaluation?.candidateRubric;
+  const previousCandRubric = (
+    previousSession as { evaluation?: { candidateRubric?: Record<string, number> } }
+  ).evaluation?.candidateRubric;
+
   const currentRubric = session.evaluation?.rubric;
   const previousRubric = (previousSession as { evaluation?: { rubric?: Record<string, number> } })
     .evaluation?.rubric;
 
-  if (!currentRubric || !previousRubric) {
+  if (!currentCandRubric || !previousCandRubric) {
     return res.json({ comparison: null });
   }
 
-  const delta: Record<string, number> = {};
-  for (const key of Object.keys(currentRubric)) {
-    delta[key] =
-      (currentRubric[key as keyof typeof currentRubric] || 0) - (previousRubric[key] || 0);
+  // Primary delta: candidate performance (what users care about)
+  const candidateDelta: Record<string, number> = {};
+  for (const key of Object.keys(currentCandRubric)) {
+    candidateDelta[key] =
+      (currentCandRubric[key as keyof typeof currentCandRubric] || 0) -
+      (previousCandRubric[key] || 0);
+  }
+
+  // Secondary delta: interviewer quality (for completeness)
+  const interviewerDelta: Record<string, number> = {};
+  if (currentRubric && previousRubric) {
+    for (const key of Object.keys(currentRubric)) {
+      interviewerDelta[key] =
+        (currentRubric[key as keyof typeof currentRubric] || 0) - (previousRubric[key] || 0);
+    }
   }
 
   const comparison = {
     baselineSessionId: previousSession.id,
     currentSessionId: session.id,
-    delta,
-    behaviorChanges: `Compared to the previous session (${
-      previousSession.id
-    }), overall score changed by ${delta.overall > 0 ? '+' : ''}${delta.overall} points.`,
+    delta: candidateDelta,
+    interviewerDelta,
+    behaviorChanges: `Compared to the previous session, your performance changed by ${
+      candidateDelta.overall > 0 ? '+' : ''
+    }${candidateDelta.overall ?? 0} points overall.`,
   };
 
   return res.json({ comparison });

@@ -7,7 +7,7 @@ export async function renderDashboard(container: HTMLElement): Promise<void> {
   container.innerHTML = '<div class="p-8 text-center text-gray-500">Loading dashboard…</div>';
 
   try {
-    const res = await api.getSessions();
+    const res = await api.getSessions(true);
     const sessions = res.sessions || [];
 
     if (sessions.length === 0) {

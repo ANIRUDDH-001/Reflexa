@@ -7,6 +7,8 @@ const logger = pino();
 
 let mcpClient: Client | null = null;
 let transport: StdioClientTransport | null = null;
+let _toolsCache: Awaited<ReturnType<Client['listTools']>> | null = null;
+let _mcpHealthy = false;
 
 export async function initMcpClient(): Promise<Client> {
   if (process.env.PHOENIX_MCP_ENABLED === 'false') {
@@ -46,6 +48,8 @@ export async function initMcpClient(): Promise<Client> {
  * Shutdown order: close client → close transport → null both.
  */
 export async function shutdownMcpClient(): Promise<void> {
+  _toolsCache = null;
+  _mcpHealthy = false;
   if (mcpClient) {
     try {
       await mcpClient.close();
@@ -68,33 +72,36 @@ export async function shutdownMcpClient(): Promise<void> {
 let _initPromise: Promise<Client> | null = null;
 
 export async function getOrInitMcpClient(): Promise<Client> {
-  if (mcpClient) {
-    try {
-      await mcpClient.listTools(); // health check ping
-      return mcpClient;
-    } catch {
-      // Client is stale — dispose and recreate
-      try {
-        await mcpClient.close();
-      } catch {
-        /* ignore close errors */
-      }
-      mcpClient = null;
-      transport = null;
-      _initPromise = null;
-    }
+  if (mcpClient && _mcpHealthy) {
+    return mcpClient;
   }
 
   // Promise-based lock prevents concurrent init race condition
   if (!_initPromise) {
-    _initPromise = initMcpClient().catch((err) => {
-      _initPromise = null;
-      throw new Error(
-        `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    });
+    _initPromise = initMcpClient()
+      .then(async (client) => {
+        try {
+          _toolsCache = await client.listTools();
+          _mcpHealthy = true;
+          logger.info(
+            { toolCount: _toolsCache?.tools?.length },
+            '[mcp] Client healthy, tools cached',
+          );
+          return client;
+        } catch (err) {
+          _mcpHealthy = false;
+          logger.warn({ err }, '[mcp] Health check failed on init');
+          throw err;
+        }
+      })
+      .catch((err) => {
+        _initPromise = null;
+        throw new Error(
+          `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
   }
 
   return _initPromise;
@@ -146,8 +153,10 @@ function mcpSchemaToGeminiSchema(jsonSchema: Record<string, unknown>): Schema {
 }
 
 export async function getMcpToolsAsGemini(): Promise<FunctionDeclaration[]> {
-  const client = await getOrInitMcpClient();
-  const toolsRes = await client.listTools();
+  await getOrInitMcpClient();
+  const toolsRes = _toolsCache;
+
+  if (!toolsRes) return [];
 
   return toolsRes.tools.map((tool) => ({
     name: tool.name,
