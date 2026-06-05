@@ -701,9 +701,9 @@ app.get('/sessions', async (req: Request, res: Response) => {
 app.get('/strategy/latest', async (req: Request, res: Response) => {
   const userId = await extractUserId(req);
   if (!userId) {
-    return res.status(401).json({ error: 'Authentication required. Send X-User-Id header.' });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-  const strategy = await getLatestStrategy(userId ?? undefined);
+  const strategy = await getLatestStrategy(userId);
   res.json({
     version: strategy?.version || 'v0',
     rules: strategy?.rules || [],
