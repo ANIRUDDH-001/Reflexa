@@ -600,7 +600,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       whyItFailed: introspection.whyItFailed,
       whatToDoNextTime: introspection.whatToDoNextTime,
       whatToAvoidNextTime: introspection.whatToAvoidNextTime,
-      newRules: introspection.newRules,
+      newRules: introspection.newRules ?? [],
       updatedAt: new Date().toISOString(),
     };
     session.strategyVersion = newVersionId;
@@ -722,7 +722,12 @@ app.get('/strategy/evolution', async (req: Request, res: Response) => {
     const history = await getHistorySessions(userId);
     // Filter sessions that actually produced a strategy update
     const evolution = history
-      .filter((s) => s.strategyUpdate && s.strategyUpdate.newRules)
+      .filter(
+        (s) =>
+          s.strategyUpdate &&
+          Array.isArray(s.strategyUpdate.newRules) &&
+          s.strategyUpdate.newRules.length > 0,
+      )
       .map((s) => ({
         sessionId: s.id,
         endedAt: s.endedAt,

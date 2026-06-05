@@ -26,6 +26,14 @@ async function seed() {
   await saveStrategy('v1.0.0', baselineRules);
   console.log('✓ Strategy v1.0.0 seeded');
 
+  const improvedRules: string[] = [
+    'When a candidate gives a one-sentence answer, ask a targeted follow-up before moving on.',
+    'Detect surface-level responses: if no trade-offs, failure modes, or alternatives are mentioned, probe explicitly.',
+    'Limit questions to one per turn — allow the candidate time to think.',
+    'Track candidate confidence signals and adjust difficulty accordingly.',
+    'Ensure at least two probing exchanges on each major subtopic before changing topics.',
+  ];
+
   /* ------------------------------------------------------------------ */
   /*  2. Weak baseline session  (demo-session-1)                        */
   /* ------------------------------------------------------------------ */
@@ -95,6 +103,7 @@ async function seed() {
         'Add explicit rules for detecting surface-level answers (e.g., no trade-off analysis, missing failure modes). Require at least one follow-up probe before changing topics.',
       whatToAvoidNextTime:
         'Avoid accepting one-sentence answers as complete. Do not change topics until at least two probing questions have been asked on the current subtopic.',
+      newRules: improvedRules,
       updatedAt: session1EndedAt,
     },
 
@@ -157,14 +166,6 @@ async function seed() {
 
   const session2StartedAt = '2026-05-25T14:00:00.000Z';
   const session2EndedAt = '2026-05-25T14:48:00.000Z';
-
-  const improvedRules: string[] = [
-    'When a candidate gives a one-sentence answer, ask a targeted follow-up before moving on.',
-    'Detect surface-level responses: if no trade-offs, failure modes, or alternatives are mentioned, probe explicitly.',
-    'Limit questions to one per turn — allow the candidate time to think.',
-    'Track candidate confidence signals and adjust difficulty accordingly.',
-    'Ensure at least two probing exchanges on each major subtopic before changing topics.',
-  ];
 
   const session2: BackendSessionState = {
     id: 'demo-session-2',
@@ -237,6 +238,10 @@ async function seed() {
         'Introduce a dedicated failure-mode probing rule: after covering the happy path, explicitly ask about error handling, retries, and degradation.',
       whatToAvoidNextTime:
         'Avoid spending excessive time on trade-off comparisons when the candidate has already demonstrated strong reasoning — shift to failure modes earlier.',
+      newRules: [
+        ...improvedRules,
+        'Introduce a dedicated failure-mode probing rule: after covering the happy path, explicitly ask about error handling, retries, and degradation.',
+      ],
       updatedAt: session2EndedAt,
     },
 
