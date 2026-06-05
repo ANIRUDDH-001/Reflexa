@@ -290,11 +290,12 @@ export async function* processTurnStream(
 
           const traceId = agentSpan.spanContext().traceId;
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 15000);
+          const timeout = setTimeout(() => controller.abort(), 30000);
 
           try {
             const stream = await chat.sendMessageStream({
               message: userMessage,
+              config: { abortSignal: controller.signal },
             });
 
             let fullText = '';
@@ -308,7 +309,7 @@ export async function* processTurnStream(
                 );
                 throw new Error('Client disconnected');
               }
-              if (controller.signal.aborted) throw new Error('Model timeout after 15s');
+              if (controller.signal.aborted) throw new Error('Model timeout after 30s');
               const token = chunk.text ?? '';
               if (token) {
                 fullText += token;
