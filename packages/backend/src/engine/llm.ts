@@ -243,142 +243,201 @@ export async function* processTurnStream(
     parts: [{ text: event.payload?.text || '' }],
   }));
 
-  const agentSpan = tracer.startSpan('processTurnStream', {
-    attributes: {
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'AGENT',
-      'session.id': state.id,
-    },
-  });
+  const queue: TurnStreamChunk[] = [];
+  let resolveNext: (() => void) | null = null;
+  let isDone = false;
+  let streamError: unknown = null;
 
-  try {
-    for (const modelId of MODELS) {
-      const llmSpan = tracer.startSpan('gemini_chat_stream', {
-        attributes: {
-          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
-          'session.id': state.id,
-          [SemanticConventions.LLM_MODEL_NAME]: modelId,
-        },
-      });
-
-      try {
-        if (Array.isArray(history)) {
-          history.forEach((msg, idx) => {
-            llmSpan.setAttribute(
-              `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.role`,
-              msg.role ?? 'user',
-            );
-            llmSpan.setAttribute(
-              `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.content`,
-              JSON.stringify(msg.parts || msg),
-            );
-          });
-        }
-
-        const chat = ai.chats.create({
-          model: modelId,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-            responseMimeType: 'application/json',
-            responseSchema,
-          },
-          history,
-        });
-
-        const traceId = agentSpan.spanContext().traceId;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-
-        try {
-          const stream = await chat.sendMessageStream({
-            message: userMessage,
-          });
-
-          let fullText = '';
-          let streamedMessageLength = 0;
-
-          for await (const chunk of stream) {
-            if (clientSignal?.aborted) {
-              logger.info(
-                { sessionId: state.id },
-                '[stream] Client disconnected, aborting generation loop',
-              );
-              throw new Error('Client disconnected');
-            }
-            if (controller.signal.aborted) throw new Error('Model timeout after 15s');
-            const token = chunk.text ?? '';
-            if (token) {
-              fullText += token;
-
-              const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
-              if (match) {
-                const extractedText = match[1];
-                if (extractedText.length > streamedMessageLength) {
-                  const newToken = extractedText.substring(streamedMessageLength);
-                  const unescapedToken = newToken
-                    .replace(/\\n/g, '\n')
-                    .replace(/\\"/g, '"')
-                    .replace(/\\\\/g, '\\');
-                  yield { type: 'token', text: unescapedToken };
-                  streamedMessageLength = extractedText.length;
-                }
-              }
-            }
-          }
-
-          let extractedMessage = '';
-          try {
-            const parsed = JSON.parse(fullText);
-            extractedMessage = parsed.agentMessage ?? '';
-          } catch {
-            const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-            extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
-            logger.warn(
-              { sessionId: state.id },
-              '[stream] Could not parse structured response — using regex fallback',
-            );
-          }
-
-          if (!extractedMessage) {
-            logger.error(
-              { sessionId: state.id, fullText: fullText.slice(0, 200) },
-              '[stream] Empty agentMessage after extraction',
-            );
-            yield { type: 'error', message: 'AI returned an empty response. Please try again.' };
-            llmSpan.end();
-            return;
-          }
-
-          llmSpan.setAttribute(
-            `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.role`,
-            'model',
-          );
-          llmSpan.setAttribute(
-            `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.content`,
-            fullText,
-          );
-
-          yield { type: 'done', fullText, traceId, phase: state.interviewPhase };
-          llmSpan.end();
-          return;
-        } finally {
-          clearTimeout(timeout);
-        }
-      } catch (err) {
-        llmSpan.recordException(err as Error);
-        llmSpan.end();
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
-        continue;
-      }
+  const push = (chunk: TurnStreamChunk) => {
+    queue.push(chunk);
+    if (resolveNext) {
+      resolveNext();
+      resolveNext = null;
     }
+  };
 
-    throw new Error('All fallback models failed.');
-  } catch (e) {
-    agentSpan.recordException(e as Error);
-    throw e;
-  } finally {
-    agentSpan.end();
+  const endStream = () => {
+    isDone = true;
+    if (resolveNext) resolveNext();
+  };
+
+  const failStream = (err: unknown) => {
+    streamError = err;
+    if (resolveNext) resolveNext();
+  };
+
+  // Run the OTEL spans in a standard async block (not a generator) to preserve context
+  // across awaits (which startActiveSpan supports) without dropping it on yields.
+  tracer.startActiveSpan(
+    'processTurnStream',
+    {
+      attributes: {
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'AGENT',
+        'session.id': state.id,
+      },
+    },
+    async (agentSpan) => {
+      try {
+        let success = false;
+        for (const modelId of MODELS) {
+          if (success) break;
+
+          await tracer.startActiveSpan(
+            'gemini_chat_stream',
+            {
+              attributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
+                'session.id': state.id,
+                [SemanticConventions.LLM_MODEL_NAME]: modelId,
+              },
+            },
+            async (llmSpan) => {
+              try {
+                if (Array.isArray(history)) {
+                  history.forEach((msg, idx) => {
+                    llmSpan.setAttribute(
+                      `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.role`,
+                      msg.role ?? 'user',
+                    );
+                    llmSpan.setAttribute(
+                      `${SemanticConventions.LLM_INPUT_MESSAGES}.${idx}.message.content`,
+                      JSON.stringify(msg.parts || msg),
+                    );
+                  });
+                }
+
+                const chat = ai.chats.create({
+                  model: modelId,
+                  config: {
+                    systemInstruction,
+                    temperature: 0.7,
+                    responseMimeType: 'application/json',
+                    responseSchema,
+                  },
+                  history,
+                });
+
+                const traceId = agentSpan.spanContext().traceId;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+
+                try {
+                  const stream = await chat.sendMessageStream({
+                    message: userMessage,
+                  });
+
+                  let fullText = '';
+                  let streamedMessageLength = 0;
+
+                  for await (const chunk of stream) {
+                    if (clientSignal?.aborted) {
+                      logger.info(
+                        { sessionId: state.id },
+                        '[stream] Client disconnected, aborting generation loop',
+                      );
+                      throw new Error('Client disconnected');
+                    }
+                    if (controller.signal.aborted) throw new Error('Model timeout after 15s');
+                    const token = chunk.text ?? '';
+                    if (token) {
+                      fullText += token;
+
+                      const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
+                      if (match) {
+                        const extractedText = match[1];
+                        if (extractedText.length > streamedMessageLength) {
+                          const newToken = extractedText.substring(streamedMessageLength);
+                          const unescapedToken = newToken
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\');
+                          push({ type: 'token', text: unescapedToken });
+                          streamedMessageLength = extractedText.length;
+                        }
+                      }
+                    }
+                  }
+
+                  let extractedMessage = '';
+                  try {
+                    const parsed = JSON.parse(fullText);
+                    extractedMessage = parsed.agentMessage ?? '';
+                  } catch {
+                    const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                    extractedMessage = match
+                      ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+                      : '';
+                    logger.warn(
+                      { sessionId: state.id },
+                      '[stream] Could not parse structured response — using regex fallback',
+                    );
+                  }
+
+                  if (!extractedMessage) {
+                    logger.error(
+                      { sessionId: state.id, fullText: fullText.slice(0, 200) },
+                      '[stream] Empty agentMessage after extraction',
+                    );
+                    push({
+                      type: 'error',
+                      message: 'AI returned an empty response. Please try again.',
+                    });
+                    success = true; // Stop trying
+                    return;
+                  }
+
+                  llmSpan.setAttribute(
+                    `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.role`,
+                    'model',
+                  );
+                  llmSpan.setAttribute(
+                    `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.message.content`,
+                    fullText,
+                  );
+
+                  push({ type: 'done', fullText, traceId, phase: state.interviewPhase });
+                  success = true;
+                } finally {
+                  clearTimeout(timeout);
+                }
+              } catch (err) {
+                llmSpan.recordException(err as Error);
+                const message = err instanceof Error ? err.message : String(err);
+                logger.warn(`[LLM Fallback] Model ${modelId} failed: ${message}`);
+                // Let the next model try
+              } finally {
+                llmSpan.end();
+              }
+            },
+          );
+        }
+
+        if (!success) {
+          throw new Error('All fallback models failed.');
+        }
+      } catch (e) {
+        agentSpan.recordException(e as Error);
+        failStream(e);
+      } finally {
+        agentSpan.end();
+        endStream();
+      }
+    },
+  );
+
+  // Yield items from the queue as they become available
+  while (true) {
+    if (queue.length > 0) {
+      yield queue.shift() as TurnStreamChunk;
+    } else if (streamError) {
+      throw streamError;
+    } else if (isDone) {
+      return;
+    } else {
+      await new Promise<void>((resolve) => {
+        resolveNext = resolve;
+      });
+    }
   }
 }
 

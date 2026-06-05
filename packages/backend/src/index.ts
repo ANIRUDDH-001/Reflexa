@@ -600,6 +600,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       whyItFailed: introspection.whyItFailed,
       whatToDoNextTime: introspection.whatToDoNextTime,
       whatToAvoidNextTime: introspection.whatToAvoidNextTime,
+      newRules: introspection.newRules,
       updatedAt: new Date().toISOString(),
     };
     session.strategyVersion = newVersionId;
@@ -657,10 +658,8 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 app.post('/session/:id/study-plan', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   try {
-    const session = await getSession(sessionId);
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+    const session = await requireSessionOwnership(req, res, sessionId);
+    if (!session) return;
 
     if (!session.evaluation) {
       return res.status(400).json({ error: 'Cannot generate study plan without evaluation' });
@@ -701,6 +700,9 @@ app.get('/sessions', async (req: Request, res: Response) => {
 // GET /strategy/latest
 app.get('/strategy/latest', async (req: Request, res: Response) => {
   const userId = await extractUserId(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required. Send X-User-Id header.' });
+  }
   const strategy = await getLatestStrategy(userId ?? undefined);
   res.json({
     version: strategy?.version || 'v0',
