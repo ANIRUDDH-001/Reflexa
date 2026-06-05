@@ -153,9 +153,9 @@ export async function saveStrategy(
 }
 
 export async function deleteStrategy(version: string, userId?: string): Promise<void> {
-  const query = db().from('strategies').delete().eq('version', version);
-  if (userId) query.eq('user_id', userId);
-  else query.is('user_id', null);
+  let query = db().from('strategies').delete().eq('version', version);
+  if (userId) query = query.eq('user_id', userId);
+  else query = query.is('user_id', null);
 
   const { error } = await query;
   if (error) {
