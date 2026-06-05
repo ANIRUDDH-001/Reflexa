@@ -18,7 +18,7 @@ function getClient(): SupabaseClient {
 
 // Lazy singleton
 let _client: SupabaseClient | null = null;
-function db(): SupabaseClient {
+export function db(): SupabaseClient {
   if (!_client) _client = getClient();
   return _client;
 }

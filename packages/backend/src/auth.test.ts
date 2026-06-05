@@ -68,6 +68,7 @@ vi.mock('./middleware/auth', () => ({
     }),
 }));
 
+import { extractAuthenticatedUser } from './middleware/auth';
 import { getSession } from './state/db';
 import type { BackendSessionState } from './state/types';
 import { app } from './index';
@@ -240,6 +241,57 @@ describe('Authorization: GET /session/:id/compare', () => {
 
   it('returns 403 when X-User-Id does not match session owner', async () => {
     const res = await request(app).get(`/session/${SESSION_ID}/compare`).set('X-User-Id', OTHER_ID);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('JWT authentication path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (getSession as any).mockResolvedValue(makeSession('jwt-user-id'));
+
+    // Mock extractAuthenticatedUser to simulate JWT validation
+    vi.mocked(extractAuthenticatedUser).mockImplementation(
+      async (req: { headers: Record<string, string | undefined> }) => {
+        const authHeader = req.headers['authorization'];
+        if (!authHeader?.startsWith('Bearer ')) return null;
+        const token = authHeader.slice(7);
+        // Simulate token validation: only accept 'valid-test-token'
+        if (token === 'valid-test-token') {
+          return { id: 'jwt-user-id', email: 'jwt@test.com', name: 'JWT User' };
+        }
+        return null; // expired/invalid token
+      },
+    );
+  });
+
+  it('returns 401 when Authorization header is missing', async () => {
+    const res = await request(app).get(`/session/${SESSION_ID}`).set('X-User-Id', 'some-id'); // X-User-Id without JWT should be rejected in production
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 when Bearer token is invalid', async () => {
+    const res = await request(app)
+      .get(`/session/${SESSION_ID}`)
+      .set('Authorization', 'Bearer invalid-expired-token');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns session when Bearer token is valid and user owns session', async () => {
+    const res = await request(app)
+      .get(`/session/${SESSION_ID}`)
+      .set('Authorization', 'Bearer valid-test-token');
+    expect(res.status).toBe(200);
+    expect(res.body.session.userId).toBe('jwt-user-id');
+  });
+
+  it('returns 403 when valid token but session belongs to different user', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (getSession as any).mockResolvedValue(makeSession('other-user-id'));
+    const res = await request(app)
+      .get(`/session/${SESSION_ID}`)
+      .set('Authorization', 'Bearer valid-test-token');
     expect(res.status).toBe(403);
   });
 });

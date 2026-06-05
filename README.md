@@ -19,11 +19,11 @@ Reflexa is an AI-powered interview preparation platform that continuously learns
 
 Reflexa is a monorepo with three packages:
 
-| Package             | Role                                                                                                                                                           |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/backend`  | Express + TypeScript API server. Hosts the Gemini-powered interview engine, Phoenix observability instrumentation, MCP client, and Supabase persistence layer. |
-| `packages/frontend` | Vanilla TypeScript SPA (Vite). Interview UI, analysis dashboard, session history.                                                                              |
-| `packages/shared`   | Shared Zod schemas and API contracts used by both packages.                                                                                                    |
+| Package             | Role                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| `packages/backend`  | Express 5 + TypeScript API server. Supabase PostgreSQL persistence via `@supabase/supabase-js`. |
+| `packages/frontend` | Vanilla TypeScript SPA (Vite). Interview UI, analysis dashboard, session history.               |
+| `packages/shared`   | Shared Zod schemas and API contracts used by both packages.                                     |
 
 ### Data Stores
 
@@ -41,14 +41,14 @@ Reflexa is a monorepo with three packages:
 
 ## Tech Stack
 
-- **Runtime:** Node.js 22, TypeScript
-- **API server:** Express 5, Zod validation, Pino logging
-- **AI:** Google Gemini 2.5 Pro (`@google/genai`), OpenInference instrumentation
-- **Observability:** Arize Phoenix Cloud (OpenTelemetry traces + MCP server)
-- **Database:** Supabase PostgreSQL (`@supabase/supabase-js`)
-- **Frontend:** Vanilla TypeScript, Vite, Tailwind CSS
-- **Testing:** Vitest, Supertest
-- **Package manager:** pnpm workspaces
+| Layer         | Technology                             |
+| ------------- | -------------------------------------- |
+| AI            | Google Gemini 2.5 Pro + Flash          |
+| Observability | Arize Phoenix Cloud                    |
+| Database      | Supabase PostgreSQL                    |
+| Auth          | Supabase OAuth (Google)                |
+| Frontend      | Vanilla TypeScript, Vite               |
+| Deployment    | Cloud Run (backend), Vercel (frontend) |
 
 ## Getting Started
 
@@ -87,7 +87,25 @@ cp .env.example packages/backend/.env
 
 See `.env.example` for descriptions of each variable.
 
-### 4. Run in development
+### 4. Seed Demo Data
+
+The demo walkthrough requires pre-seeded sessions to demonstrate the improvement arc.
+Run the seeder after your backend is connected to Supabase:
+
+```bash
+cd packages/backend
+pnpm run seed
+```
+
+This creates:
+
+- A **baseline session** (42% overall score) showing shallow answers and missed follow-ups
+- An **improved session** (71% overall score) showing the same candidate after strategy updates
+- The strategy evolution entries that connect them
+
+> Re-run `pnpm run seed` any time you want to reset to a clean demo state.
+
+### 5. Run in development
 
 ```bash
 # Terminal 1 — backend
@@ -100,7 +118,7 @@ cd packages/frontend && pnpm dev
 Frontend: http://localhost:5173  
 Backend: http://localhost:8000
 
-### 5. Run tests
+### 6. Run tests
 
 ```bash
 pnpm test
@@ -108,27 +126,15 @@ pnpm test
 
 ## Demo Walkthrough
 
-Follow these five steps to see Reflexa's self-improvement loop in action:
-
-### 1. 📋 Explore the Baseline
-
-Open **History** to see the weak baseline session with a score of **42%**. This is the starting point — an interview where the agent used its default, untuned strategy.
-
-### 2. 🔍 Inspect the Rubric
-
-Click **Review** on the baseline session. You'll see the full rubric breakdown and **3 distinct failure patterns** the evaluation agent identified (e.g., missed edge cases, shallow follow-ups, vague scoring criteria).
-
-### 3. 🧠 Read the Introspection Report
-
-Navigate to the **Introspection Agent Report**. This is where Reflexa analyzed _what_ failed, _why_ it failed, and _what concrete changes_ to make. The agent auto-generates new strategy rules to address each weakness.
-
-### 4. 📊 Compare Improvements
-
-Click **Compare Previous** on the improved session (score: **71%**). See the **+29-point overall improvement** side-by-side, with per-rubric deltas showing exactly which areas recovered.
-
-### 5. 🚀 Start a New Session
-
-Launch a new interview session. The agent now incorporates the learned strategy rules — notice sharper questions, more targeted follow-ups, and stricter evaluation criteria.
+1. Sign in with Google (OAuth via Supabase)
+2. **Dashboard** — shows seeded baseline session at 42% overall score
+3. **Start a new session** — role: Senior Backend Engineer, difficulty: Hard
+4. Complete 5–6 turns of interview
+5. **End session** — triggers evaluation + introspection + strategy update
+6. **Analysis page** — view rubric scores, study plan, and trace spans in Phoenix
+7. **Strategy page** — evolution timeline shows rules generated from the weak session
+8. **Start another session** — the new rules are injected into the system prompt
+9. Complete the session — higher scores reflect strategy improvement
 
 ## Testing
 
@@ -159,7 +165,7 @@ reflexa/
 │   │       ├── seed.ts          # Demo data seeder
 │   │       ├── telemetry.ts     # OpenTelemetry setup
 │   │       ├── engine/          # Interview & introspection agents
-│   │       └── state/           # SQLite persistence layer
+│   │       ├── state/           # Supabase persistence layer
 │   └── frontend/                # @reflexa/frontend
 │       └── src/
 │           ├── main.ts          # App bootstrap

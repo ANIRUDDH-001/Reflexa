@@ -29,3 +29,6 @@ package-lock.json
 packages/backend/.env
 packages/frontend/.env.local
 .env.local
+docs/*_BLUEPRINT.md
+docs/*_PLAN.md
+docs/INTERNAL_*

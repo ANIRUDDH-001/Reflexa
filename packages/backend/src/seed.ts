@@ -9,10 +9,18 @@
  * Usage:  npx ts-node src/seed.ts   (or  npx tsx src/seed.ts)
  */
 
-import { saveSession, saveStrategy } from './state/db';
+import { saveSession, saveStrategy, db } from './state/db';
 import { BackendSessionState } from './state/types';
 
+const RESET = process.argv.includes('--reset');
+
 async function seed() {
+  if (RESET) {
+    console.log('[seed] Resetting demo data...');
+    await db().from('sessions').delete().in('id', ['demo-session-1', 'demo-session-2']);
+    await db().from('strategies').delete().eq('version', 'v1717600000001');
+    console.log('[seed] Reset complete.');
+  }
   /* ------------------------------------------------------------------ */
   /*  1. Baseline strategy v1.0.0                                       */
   /* ------------------------------------------------------------------ */

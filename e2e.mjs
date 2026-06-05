@@ -1,6 +1,6 @@
 
 const PORT = process.env.PORT || 8000;
-const URL = `http://localhost:${PORT}`;
+const URL = process.env.BACKEND_URL || `http://localhost:${PORT}`;
 
 async function run() {
   console.log('--- END TO END TEST ---');

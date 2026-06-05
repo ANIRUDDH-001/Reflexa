@@ -159,18 +159,28 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: { error: 'Too many requests, please try again later.' },
-});
-app.use(limiter);
+const isProduction = process.env.NODE_ENV === 'production';
 
-const turnLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // limit each IP to 10 turn requests per minute
-  message: { error: 'Rate limit exceeded for turn submission.' },
+// General API rate limit (all endpoints)
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 60, // 60 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — please slow down.' },
 });
+
+// Strict limit for expensive AI operations
+const aiOperationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: isProduction ? 10 : 1000, // lenient in dev
+  skip: () => !isProduction, // or skip entirely in dev
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'AI rate limit exceeded — please wait before starting another session.' },
+});
+
+app.use(generalLimiter);
 
 app.use(
   cors({
@@ -226,6 +236,12 @@ app.get('/config', (req: Request, res: Response) => {
     phoenixTraceBase: getPhoenixTraceBase(),
   });
 });
+
+// Apply strict limit specifically to session-creating and AI-generating endpoints
+app.use('/session', aiOperationLimiter); // POST /session (create)
+app.use('/session/:id/turn', aiOperationLimiter); // POST /session/:id/turn*
+app.use('/session/:id/end', aiOperationLimiter); // POST /session/:id/end
+app.use('/session/:id/study-plan', aiOperationLimiter);
 
 // Start a new session
 app.post('/session', async (req: Request, res: Response) => {
@@ -309,7 +325,7 @@ app.get('/session/:id', async (req: Request, res: Response) => {
 });
 
 // Submit an answer (user turn)
-app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) => {
+app.post('/session/:id/turn', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   const session = await requireSessionOwnership(req, res, sessionId);
   if (!session) return;
@@ -388,7 +404,7 @@ app.post('/session/:id/turn', turnLimiter, async (req: Request, res: Response) =
 });
 
 // POST /session/:id/turn/stream — streaming variant using SSE
-app.post('/session/:id/turn/stream', turnLimiter, async (req: Request, res: Response) => {
+app.post('/session/:id/turn/stream', async (req: Request, res: Response) => {
   const sessionId = req.params.id;
   const parsed = APIContracts.TurnRequest.safeParse(req.body);
   if (!parsed.success) {
