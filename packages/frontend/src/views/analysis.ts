@@ -204,7 +204,7 @@ export async function renderAnalysis(
 
             let spansHtml = '<div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">';
             for (const span of spans) {
-              const latency = Math.round(span.latencyMs || 0);
+              const latency = span.latencyMs != null ? `${Math.round(span.latencyMs)}ms` : 'N/A';
               const attributesStr = span.attributes || '{}';
               let attrs: any = {};
               try {
@@ -225,8 +225,10 @@ export async function renderAnalysis(
                 span.name,
               )}</h4>
                     <span class="text-sm ${
-                      latency > 2000 ? 'text-warning' : 'text-success'
-                    } font-medium">${latency} ms</span>
+                      span.latencyMs != null && span.latencyMs > 2000
+                        ? 'text-warning'
+                        : 'text-success'
+                    } font-medium">${latency}</span>
                   </div>
                   <div class="text-xs text-gray-500 grid grid-cols-2 gap-2 mt-2">
                     <div><span class="font-medium">Status:</span> ${escapeHtml(

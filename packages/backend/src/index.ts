@@ -761,16 +761,22 @@ app.get('/session/:id/trace-spans', async (req: Request, res: Response) => {
     // We search for spans where the session ID might be tracked, or just return the latest traces for the project
     const query = `
       query GetSpans {
-        spans(first: 50, condition: { spanKind: SERVER }) {
+        spans(first: 50) {
           edges {
             node {
               id
               name
+              spanKind
               startTime
               endTime
               latencyMs
               attributes
               statusMessage
+              context {
+                traceId
+                spanId
+              }
+              parentId
             }
           }
         }
@@ -788,10 +794,16 @@ app.get('/session/:id/trace-spans', async (req: Request, res: Response) => {
 
     if (fetchRes.ok) {
       const data = await fetchRes.json();
-      return res.json({
-        spans: data.data?.spans?.edges?.map((e: { node: unknown }) => e.node) || [],
-        source: 'phoenix',
-      });
+      const allSpans = data.data?.spans?.edges?.map((e: { node: unknown }) => e.node) || [];
+
+      // Filter to spans from this session's trace if we have the traceId
+      const relevantSpans = session.evalTraceId
+        ? allSpans.filter(
+            (s: { context?: { traceId?: string } }) => s.context?.traceId === session.evalTraceId,
+          )
+        : allSpans; // fallback: show all recent spans
+
+      return res.json({ spans: relevantSpans, source: 'phoenix' });
     }
   } catch (err) {
     logger.warn({ err }, 'Failed to fetch spans from Phoenix, falling back to local trace');
@@ -799,21 +811,33 @@ app.get('/session/:id/trace-spans', async (req: Request, res: Response) => {
 
   // Fallback: Synthesize spans from local session.trace
   const synthesizedSpans = (session.trace || []).map(
-    (t: { id?: string; traceId?: string; type?: string; timestamp?: string }) => ({
-      id: t.id || t.traceId || Math.random().toString(),
-      name: t.type === 'ai_message' ? 'LLM_GENERATE' : 'USER_INPUT',
-      startTime: t.timestamp || new Date().toISOString(),
-      endTime: t.timestamp || new Date().toISOString(),
-      latencyMs: t.type === 'ai_message' ? 1200 + Math.random() * 800 : 0, // Simulated latency
-      attributes: JSON.stringify({
-        'llm.model': 'gemini-2.5-flash',
-        'llm.token_count.total': Math.floor(Math.random() * 500) + 100,
-      }),
-      statusMessage: 'OK',
-    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (t: any) => {
+      const isAiMessage = t.type === 'ai_message';
+      return {
+        id: t.id || t.traceId || `local-${Date.now()}`,
+        name: isAiMessage ? 'LLM_GENERATE' : 'USER_INPUT',
+        spanKind: isAiMessage ? 'LLM' : 'USER',
+        startTime: t.timestamp || new Date().toISOString(),
+        endTime: t.timestamp || new Date().toISOString(),
+        latencyMs: null,
+        attributes: JSON.stringify({
+          'llm.model': isAiMessage ? 'gemini-2.5-flash' : undefined,
+          'session.id': session.id,
+          'message.type': t.type,
+          ...(t.payload?.tokenCount ? { 'llm.token_count.total': t.payload.tokenCount } : {}),
+        }),
+        statusMessage: 'OK',
+        traceId: t.traceId || null,
+      };
+    },
   );
 
-  return res.json({ spans: synthesizedSpans, source: 'fallback' });
+  return res.json({
+    spans: synthesizedSpans,
+    source: 'fallback',
+    message: 'Phoenix traces unavailable — showing local session trace',
+  });
 });
 
 // Compare session to previous
