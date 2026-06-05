@@ -15,5 +15,17 @@ packages/*/node_modules
 *.db
 packages/data/*.db
 
-# Debug artifacts
+# Development artifacts
 debug.json
+*.debug.json
+package-lock.json
+
+# Editor
+.vscode/settings.json
+*.swp
+.DS_Store
+
+# Environment
+packages/backend/.env
+packages/frontend/.env.local
+.env.local

@@ -1,4 +1,5 @@
 import { getStrategyEvolution } from '../api';
+import { refreshIcons } from '../lucide';
 import { escapeHtml } from '../utils/dom';
 
 export async function renderStrategy(container: HTMLElement): Promise<void> {
@@ -27,8 +28,7 @@ export async function renderStrategy(container: HTMLElement): Promise<void> {
         <p class="text-gray-500 max-w-md mx-auto">Complete more interview sessions. The introspection agent will analyze your performance and generate personalized rules to guide future interviews.</p>
       </div>
     `;
-    // @ts-expect-error - lucide is added via script tag
-    if (window.lucide) window.lucide.createIcons();
+    refreshIcons();
     return;
   }
 
@@ -137,6 +137,5 @@ export async function renderStrategy(container: HTMLElement): Promise<void> {
     </div>
   `;
 
-  // @ts-expect-error - lucide is added via script tag
-  if (window.lucide) window.lucide.createIcons();
+  refreshIcons();
 }

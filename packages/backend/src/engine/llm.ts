@@ -8,6 +8,27 @@ import 'dotenv/config';
 
 const tracer = trace.getTracer('reflexa-agent');
 
+const MAX_HISTORY_TURNS = 10; // Keep last 10 turn pairs (20 messages) for context
+
+// Helper function to build windowed history
+function buildConversationHistory(
+  trace: BackendSessionState['trace'],
+): Array<{ role: 'user' | 'model'; parts: { text: string }[] }> {
+  const allHistory = (trace || []).map((event) => ({
+    role: event.type === 'user_message' ? ('user' as const) : ('model' as const),
+    parts: [{ text: event.payload?.text || '' }],
+  }));
+
+  // Always keep the full history for short sessions
+  if (allHistory.length <= MAX_HISTORY_TURNS * 2) {
+    return allHistory;
+  }
+
+  // For long sessions, keep: first 2 turns (intro context) + last N turns (recent context)
+  const introContext = allHistory.slice(0, 2);
+  const recentContext = allHistory.slice(-(MAX_HISTORY_TURNS * 2 - 2));
+  return [...introContext, ...recentContext];
+}
 export const MODELS = [
   'gemini-2.5-flash', // GA — stable, fast primary
   'gemini-2.5-pro', // premium reasoning fallback
@@ -118,10 +139,7 @@ export async function processTurn(
         const systemInstruction = assemblePrompt(state);
 
         // Build history from trace
-        const history = (state.trace || []).map((event) => ({
-          role: event.type === 'user_message' ? 'user' : 'model',
-          parts: [{ text: event.payload?.text || '' }],
-        }));
+        const history = buildConversationHistory(state.trace);
 
         for (const model of MODELS) {
           try {
@@ -238,10 +256,7 @@ export async function* processTurnStream(
   const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
   const systemInstruction = assemblePrompt(state);
 
-  const history = (state.trace || []).map((event) => ({
-    role: event.type === 'user_message' ? ('user' as const) : ('model' as const),
-    parts: [{ text: event.payload?.text || '' }],
-  }));
+  const history = buildConversationHistory(state.trace);
 
   const agentSpan = tracer.startSpan('processTurnStream', {
     attributes: {
