@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import request from 'supertest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -252,18 +253,16 @@ describe('JWT authentication path', () => {
     (getSession as any).mockResolvedValue(makeSession('jwt-user-id'));
 
     // Mock extractAuthenticatedUser to simulate JWT validation
-    vi.mocked(extractAuthenticatedUser).mockImplementation(
-      async (req: { headers: Record<string, string | undefined> }) => {
-        const authHeader = req.headers['authorization'];
-        if (!authHeader?.startsWith('Bearer ')) return null;
-        const token = authHeader.slice(7);
-        // Simulate token validation: only accept 'valid-test-token'
-        if (token === 'valid-test-token') {
-          return { id: 'jwt-user-id', email: 'jwt@test.com', name: 'JWT User' };
-        }
-        return null; // expired/invalid token
-      },
-    );
+    vi.mocked(extractAuthenticatedUser).mockImplementation(async (req: Request) => {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader?.startsWith('Bearer ')) return null;
+      const token = authHeader.slice(7);
+      // Simulate token validation: only accept 'valid-test-token'
+      if (token === 'valid-test-token') {
+        return { id: 'jwt-user-id', email: 'jwt@test.com', name: 'JWT User' };
+      }
+      return null; // expired/invalid token
+    });
   });
 
   it('returns 401 when Authorization header is missing', async () => {
