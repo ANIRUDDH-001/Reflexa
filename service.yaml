@@ -22,9 +22,9 @@ spec:
         # Standard Environment Variables
         - name: FRONTEND_ORIGIN
           value: 'https://reflexa-frontend.vercel.app'
-        - name: PHOENIX_PROJECT_NAME
+        - name: ARIZE_PROJECT_NAME
           value: 'reflexa'
-        - name: PHOENIX_MCP_ENABLED
+        - name: ARIZE_MCP_ENABLED
           value: 'true'
         
         # Secret Manager Secrets
@@ -33,15 +33,15 @@ spec:
             secretKeyRef:
               name: GOOGLE_API_KEY
               key: latest
-        - name: PHOENIX_API_KEY
+        - name: ARIZE_API_KEY
           valueFrom:
             secretKeyRef:
-              name: PHOENIX_API_KEY
+              name: ARIZE_API_KEY
               key: latest
-        - name: PHOENIX_COLLECTOR_ENDPOINT
+        - name: ARIZE_SPACE_ID
           valueFrom:
             secretKeyRef:
-              name: PHOENIX_COLLECTOR_ENDPOINT
+              name: ARIZE_SPACE_ID
               key: latest
         - name: SUPABASE_URL
           valueFrom:

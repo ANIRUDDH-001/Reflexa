@@ -639,6 +639,41 @@ export interface EvalSessionConfig {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function logEvalToPhoenix(
+  traceId: string,
+  spanId: string,
+  scores: Record<string, number>,
+): Promise<void> {
+  const arizeSpaceId = process.env.ARIZE_SPACE_ID;
+  const arizeApiKey = process.env.ARIZE_API_KEY;
+  if (!arizeSpaceId || !arizeApiKey) return;
+
+  try {
+    // Send to Arize AX Phoenix Cloud
+    await fetch(`https://app.phoenix.arize.com/v1/evaluations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        api_key: arizeApiKey,
+        space_id: arizeSpaceId,
+      },
+      body: JSON.stringify({
+        evaluations: Object.entries(scores).map(([name, score]) => ({
+          name,
+          annotatorKind: 'LLM',
+          result: { score, label: score >= 50 ? 'pass' : 'fail' }, // score is 0-100 here
+          trace_id: traceId,
+          span_id: spanId,
+        })),
+      }),
+    });
+  } catch (err) {
+    // Non-blocking — evaluation logging failure should not crash the session
+    logger.warn({ err }, 'Failed to log evaluations to Arize AX');
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateEvaluation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   traceData: Array<{ type: string; payload?: any }>,

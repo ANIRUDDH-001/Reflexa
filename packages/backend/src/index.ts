@@ -11,6 +11,7 @@ import { runIntrospection } from './engine/introspection';
 import {
   processTurn,
   generateEvaluation,
+  logEvalToPhoenix,
   processTurnStream,
   CandidateAssessment,
 } from './engine/llm';
@@ -709,6 +710,18 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       return res
         .status(500)
         .json({ error: 'contract mismatch', details: parsedRes.error.format() });
+    }
+
+    // Fire and forget evaluation logging
+    if (evaluation.traceId) {
+      logEvalToPhoenix(evaluation.traceId, evaluation.traceId, {
+        overall: evaluation.rubric?.overall ?? 0,
+        candidateOverall: evaluation.candidateRubric?.overall ?? 0,
+        relevance: evaluation.rubric?.relevance ?? 0,
+        depth: evaluation.rubric?.depth ?? 0,
+        clarity: evaluation.rubric?.clarity ?? 0,
+        opportunityCoverage: evaluation.rubric?.opportunityCoverage ?? 0,
+      }).catch((err) => logger.error({ err }, 'Failed to log eval to Phoenix'));
     }
 
     return res.json(responsePayload);
