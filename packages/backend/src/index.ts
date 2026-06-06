@@ -27,6 +27,7 @@ import {
   saveSession,
   getHistorySessions,
 } from './state/db';
+import 'express-async-errors';
 import { BackendSessionState } from './state/types';
 import { shutdownTelemetry } from './telemetry';
 
@@ -40,11 +41,7 @@ if (process.env.SKIP_ENV_VALIDATION !== 'true') {
     'SUPABASE_SERVICE_ROLE_KEY',
   ] as const;
 
-  const OPTIONAL_WITH_WARNING = [
-    'PHOENIX_API_KEY',
-    'PHOENIX_COLLECTOR_ENDPOINT',
-    'PHOENIX_PROJECT_NAME',
-  ] as const;
+  const OPTIONAL_WITH_WARNING = ['ARIZE_API_KEY', 'ARIZE_SPACE_ID', 'ARIZE_PROJECT_NAME'] as const;
 
   const missingCritical = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
   if (missingCritical.length > 0) {
@@ -62,7 +59,7 @@ if (process.env.SKIP_ENV_VALIDATION !== 'true') {
       `[startup] WARNING: Missing optional environment variables: ${missingOptional.join(', ')}`,
     );
     // eslint-disable-next-line no-console
-    console.warn('[startup] Phoenix tracing will be disabled');
+    console.warn('[startup] Arize tracing will be disabled');
   }
 }
 
@@ -85,11 +82,11 @@ if (!process.env.FRONTEND_ORIGIN) {
       'This will block all requests from a production frontend.',
   );
 }
-if (!process.env.PHOENIX_PROJECT_NAME) {
+if (!process.env.ARIZE_PROJECT_NAME) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[Reflexa] PHOENIX_PROJECT_NAME not set — defaulting to "default". ' +
-      'Set this to your Phoenix project name for correct trace links.',
+    '[Reflexa] ARIZE_PROJECT_NAME not set — defaulting to "default". ' +
+      'Set this to your Arize project name for correct trace links.',
   );
 }
 // ── End env validation ─────────────────────────────────────────
@@ -255,19 +252,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
  * Used by both GET /config and GET /session/:id to avoid duplication.
  */
 function getPhoenixTraceBase(): string {
-  const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
+  const ARIZE_PROJECT = process.env.ARIZE_PROJECT_NAME || 'default';
   let traceBase = 'https://app.phoenix.arize.com';
 
-  const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
-  if (collector.includes('/s/')) {
-    const spaceMatch = collector.match(/\/s\/([^/]+)/);
-    if (spaceMatch) {
-      const spaceSlug = spaceMatch[1];
-      traceBase = `https://app.phoenix.arize.com/s/${spaceSlug}/projects/${PHOENIX_PROJECT}/traces`;
-    }
-  } else if (collector.startsWith('http://localhost') || collector.startsWith('http://0.0.0.0')) {
-    const baseUrl = collector.replace(/\/v1\/traces\/?$/, '');
-    traceBase = `${baseUrl}/projects/${PHOENIX_PROJECT}/traces`;
+  const spaceId = process.env.ARIZE_SPACE_ID || '';
+  if (spaceId) {
+    traceBase = `https://app.phoenix.arize.com/s/${spaceId}/projects/${ARIZE_PROJECT}/traces`;
+  } else {
+    traceBase = `http://localhost:6006/projects/${ARIZE_PROJECT}/traces`;
   }
   return traceBase;
 }

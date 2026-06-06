@@ -1,8 +1,12 @@
 import { MCPInstrumentation } from '@arizeai/openinference-instrumentation-mcp';
-import { register } from '@arizeai/phoenix-otel';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
 
 const ARIZE_PROJECT = process.env.ARIZE_PROJECT_NAME || 'reflexa';
@@ -11,14 +15,24 @@ const hasApiKey = !!process.env.ARIZE_API_KEY;
 // eslint-disable-next-line no-console
 console.log(`[Arize] Project: ${ARIZE_PROJECT} | API Key: ${hasApiKey ? 'set' : 'MISSING'}`);
 
-const provider = register({
-  projectName: ARIZE_PROJECT,
-  url: 'https://otlp.arize.com/v1',
-  headers: {
-    space_id: process.env.ARIZE_SPACE_ID || '',
-    api_key: process.env.ARIZE_API_KEY || '',
-  },
+const provider = new NodeTracerProvider({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: ARIZE_PROJECT,
+  }),
+  spanProcessors: [
+    new SimpleSpanProcessor(
+      new OTLPTraceExporter({
+        url: 'https://otlp.arize.com/v1/traces',
+        headers: {
+          Authorization: `Bearer ${process.env.ARIZE_API_KEY || ''}`,
+          'space-id': process.env.ARIZE_SPACE_ID || '',
+        },
+      }),
+    ),
+  ],
 });
+
+provider.register();
 
 registerInstrumentations({
   tracerProvider: provider,
@@ -30,7 +44,7 @@ registerInstrumentations({
 });
 
 // eslint-disable-next-line no-console
-console.log('[Arize] OpenTelemetry SDK started successfully with phoenix-otel');
+console.log('[Arize] OpenTelemetry SDK started successfully with standard OTLP trace exporter');
 
 export async function shutdownTelemetry(): Promise<void> {
   // eslint-disable-next-line no-console

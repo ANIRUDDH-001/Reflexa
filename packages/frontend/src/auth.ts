@@ -9,6 +9,11 @@ const supabaseAnonKey: string = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 let _client: SupabaseClient | null = null;
 function getClient(): SupabaseClient {
   if (!_client) {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      document.body.innerHTML =
+        '<div style="color: red; padding: 20px; font-family: sans-serif;"><h1>Configuration Error</h1><p>Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables. Please check your .env file.</p></div>';
+      throw new Error('Supabase environment variables are missing.');
+    }
     _client = createClient(supabaseUrl, supabaseAnonKey);
   }
   return _client;

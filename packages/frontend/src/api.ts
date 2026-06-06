@@ -33,24 +33,32 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
     authHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      ...authHeaders,
-      ...(init?.headers ?? {}),
-    },
-  });
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      credentials: init?.credentials || 'include',
+      headers: {
+        ...authHeaders,
+        ...(init?.headers ?? {}),
+      },
+    });
 
-  // Handle auth errors by redirecting to login
-  if (response.status === 401) {
-    window.location.hash = '#/login';
-    throw new Error('Unauthorized — redirecting to login');
-  }
-  if (response.status === 403) {
-    throw new Error('Forbidden — you do not have access to this resource');
-  }
+    // Handle auth errors by redirecting to login
+    if (response.status === 401) {
+      window.location.hash = '#/login';
+      throw new Error('Unauthorized — redirecting to login');
+    }
+    if (response.status === 403) {
+      throw new Error('Forbidden — you do not have access to this resource');
+    }
 
-  return response;
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'TypeError' && err.message === 'Failed to fetch') {
+      throw new Error('Network error — unable to reach the server. Please check your connection.');
+    }
+    throw err;
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -209,17 +217,27 @@ export async function* sendTurnStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? ''; // keep incomplete line in buffer
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? ''; // keep incomplete block in buffer
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (raw === '[DONE]') return;
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        const lines = block.split('\n');
+        let dataPayload = '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            dataPayload += line.slice(6);
+          }
+        }
+
+        if (!dataPayload) continue;
+        if (dataPayload.trim() === '[DONE]') return;
         try {
-          yield JSON.parse(raw) as TurnStreamEvent;
-        } catch {
-          // Malformed SSE line — skip
+          yield JSON.parse(dataPayload) as TurnStreamEvent;
+        } catch (e) {
+          console.error('SSE parse error on payload:', dataPayload, e);
+          // Only skip token chunks if malformed, but if it's the final 'done' event we should probably error out.
+          // For resilience, we just ignore malformed chunks instead of breaking the entire stream.
         }
       }
     }

@@ -14,19 +14,29 @@ const MAX_HISTORY_TURNS = 10; // Keep last 10 turn pairs (20 messages) for conte
 function buildConversationHistory(
   trace: BackendSessionState['trace'],
 ): Array<{ role: 'user' | 'model'; parts: { text: string }[] }> {
-  const allHistory = (trace || []).map((event) => ({
+  const rawHistory = (trace || []).map((event) => ({
     role: event.type === 'user_message' ? ('user' as const) : ('model' as const),
     parts: [{ text: event.payload?.text || '' }],
   }));
 
+  const mergedHistory: typeof rawHistory = [];
+  for (const msg of rawHistory) {
+    if (mergedHistory.length > 0 && mergedHistory[mergedHistory.length - 1].role === msg.role) {
+      // Merge consecutive same roles
+      mergedHistory[mergedHistory.length - 1].parts[0].text += '\n\n' + msg.parts[0].text;
+    } else {
+      mergedHistory.push(msg);
+    }
+  }
+
   // Always keep the full history for short sessions
-  if (allHistory.length <= MAX_HISTORY_TURNS * 2) {
-    return allHistory;
+  if (mergedHistory.length <= MAX_HISTORY_TURNS * 2) {
+    return mergedHistory;
   }
 
   // For long sessions, keep: first 2 turns (intro context) + last N turns (recent context)
-  const introContext = allHistory.slice(0, 2);
-  const recentContext = allHistory.slice(-(MAX_HISTORY_TURNS * 2 - 2));
+  const introContext = mergedHistory.slice(0, 2);
+  const recentContext = mergedHistory.slice(-(MAX_HISTORY_TURNS * 2 - 2));
   return [...introContext, ...recentContext];
 }
 export const MODELS = [
@@ -138,8 +148,8 @@ export async function processTurn(
 
         const systemInstruction = assemblePrompt(state);
 
-        // Build history from trace
-        const history = buildConversationHistory(state.trace);
+        // Build history from trace, excluding the latest message which will be passed to sendMessage
+        const history = buildConversationHistory((state.trace || []).slice(0, -1));
 
         for (const model of MODELS) {
           try {
@@ -256,7 +266,8 @@ export async function* processTurnStream(
   const ai = new GoogleGenAI({ apiKey: getGoogleApiKey() });
   const systemInstruction = assemblePrompt(state);
 
-  const history = buildConversationHistory(state.trace);
+  // Exclude the latest user message which will be passed to sendMessageStream
+  const history = buildConversationHistory((state.trace || []).slice(0, -1));
 
   const agentSpan = tracer.startSpan('processTurnStream', {
     attributes: {
@@ -270,13 +281,17 @@ export async function* processTurnStream(
   try {
     yield* context.with(agentContext, async function* (): AsyncGenerator<TurnStreamChunk> {
       for (const modelId of MODELS) {
-        const llmSpan = tracer.startSpan('gemini_chat_stream', {
-          attributes: {
-            [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
-            'session.id': state.id,
-            [SemanticConventions.LLM_MODEL_NAME]: modelId,
+        const llmSpan = tracer.startSpan(
+          'gemini_chat_stream',
+          {
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: 'LLM',
+              'session.id': state.id,
+              [SemanticConventions.LLM_MODEL_NAME]: modelId,
+            },
           },
-        });
+          agentContext,
+        );
 
         try {
           if (Array.isArray(history)) {
@@ -305,7 +320,7 @@ export async function* processTurnStream(
 
           const traceId = agentSpan.spanContext().traceId;
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
+          let timeout = setTimeout(() => controller.abort(), 30000);
 
           try {
             const stream = await chat.sendMessageStream({
@@ -325,6 +340,9 @@ export async function* processTurnStream(
                 throw new Error('Client disconnected');
               }
               if (controller.signal.aborted) throw new Error('Model timeout after 30s');
+              // Reset timeout on every chunk
+              clearTimeout(timeout);
+              timeout = setTimeout(() => controller.abort(), 30000);
               const token = chunk.text ?? '';
               if (token) {
                 fullText += token;
@@ -363,9 +381,7 @@ export async function* processTurnStream(
                 { sessionId: state.id, fullText: fullText.slice(0, 200) },
                 '[stream] Empty agentMessage after extraction',
               );
-              yield { type: 'error', message: 'AI returned an empty response. Please try again.' };
-              llmSpan.end();
-              return;
+              throw new Error('AI returned an empty response.');
             }
 
             llmSpan.setAttribute(

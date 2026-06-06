@@ -40,16 +40,16 @@ api
 
 // ── Global error boundary ─────────────────────────────────────────────────────
 function showGlobalError(message: string): void {
-  const existing = document.getElementById('global-error-banner');
-  if (existing) return; // Don't stack banners
-  const banner = document.createElement('div');
-  banner.id = 'global-error-banner';
-  banner.style.cssText =
-    'position:fixed;top:0;left:0;right:0;padding:12px 20px;background:#ef4444;color:white;font-size:14px;z-index:9999;text-align:center;cursor:pointer;';
-  banner.textContent = message;
-  banner.onclick = () => banner.remove();
-  document.body.prepend(banner);
-  setTimeout(() => banner.remove(), 8000);
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#fef2f2; color:#991b1b; padding:2rem; text-align:center; font-family:sans-serif;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:1rem;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <h2 style="font-size:1.5rem; font-weight:bold; margin-bottom:0.5rem;">Fatal Application Error</h2>
+      <p style="margin-bottom:1.5rem;">${message}</p>
+      <button onclick="window.location.reload()" style="background:#dc2626; color:white; padding:0.5rem 1rem; border-radius:0.375rem; border:none; cursor:pointer;">Reload Page</button>
+    </div>
+  `;
 }
 
 window.addEventListener('unhandledrejection', (event) => {

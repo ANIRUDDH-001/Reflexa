@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS strategies (
   version         TEXT NOT NULL UNIQUE,
   rules           JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   user_id         TEXT  -- NULL = global strategy, non-NULL = per-user
 );
 
