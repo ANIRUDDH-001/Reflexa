@@ -1,5 +1,9 @@
+# Reflexa — Self-Improving AI Interview Agent
+
+[![Demo Video](https://img.shields.io/badge/Demo-Watch%20on%20YouTube-red)](https://youtu.be/PLACEHOLDER)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 <p align="center">
-  <h1 align="center">Reflexa</h1>
   <p align="center"><strong>Self-Improving Technical Interview Intelligence</strong></p>
 </p>
 
@@ -41,14 +45,16 @@ Reflexa is a monorepo with three packages:
 
 ## Tech Stack
 
-| Layer         | Technology                             |
-| ------------- | -------------------------------------- |
-| AI            | Google Gemini 2.5 Pro + Flash          |
-| Observability | Arize Phoenix Cloud                    |
-| Database      | Supabase PostgreSQL                    |
-| Auth          | Supabase OAuth (Google)                |
-| Frontend      | Vanilla TypeScript, Vite               |
-| Deployment    | Cloud Run (backend), Vercel (frontend) |
+| Layer            | Technology                                |
+| ---------------- | ----------------------------------------- |
+| AI Model         | Google Gemini 2.5 Pro + 2.5 Flash         |
+| AI Observability | Arize Phoenix Cloud (OpenTelemetry + MCP) |
+| Backend          | Express 5, TypeScript, Node.js 22         |
+| Database         | Supabase PostgreSQL                       |
+| Auth             | Supabase OAuth (Google Sign-In)           |
+| Frontend         | Vanilla TypeScript, Vite 6, Tailwind CSS  |
+| Instrumentation  | OpenInference + `@arizeai/phoenix-otel`   |
+| Deployment       | Cloud Run (backend), Vercel (frontend)    |
 
 ## Getting Started
 
@@ -60,25 +66,20 @@ Reflexa is a monorepo with three packages:
 - An [Arize Phoenix Cloud](https://app.phoenix.arize.com) account (free tier works)
 - A [Google AI Studio](https://aistudio.google.com) API key
 
-### 1. Clone and install
+### 1. Clone repo
 
 ```bash
 git clone https://github.com/your-org/reflexa
 cd reflexa
+```
+
+### 2. Install deps (pnpm install)
+
+```bash
 pnpm install
 ```
 
-### 2. Set up Supabase
-
-Run the schema migration against your Supabase project:
-
-```bash
-# Apply the schema (see supabase/schema.sql)
-psql "$SUPABASE_URL" -f supabase/schema.sql
-# OR use the Supabase dashboard SQL editor to paste and run schema.sql
-```
-
-### 3. Configure environment variables
+### 3. Configure env vars
 
 ```bash
 cp .env.example packages/backend/.env
@@ -87,25 +88,11 @@ cp .env.example packages/backend/.env
 
 See `.env.example` for descriptions of each variable.
 
-### 4. Seed Demo Data
+### 4. Start services
 
-The demo walkthrough requires pre-seeded sessions to demonstrate the improvement arc.
-Run the seeder after your backend is connected to Supabase:
+Run the schema migration against your Supabase project using the dashboard SQL editor or `psql "$SUPABASE_URL" -f supabase/schema.sql`.
 
-```bash
-cd packages/backend
-pnpm run seed
-```
-
-This creates:
-
-- A **baseline session** (42% overall score) showing shallow answers and missed follow-ups
-- An **improved session** (71% overall score) showing the same candidate after strategy updates
-- The strategy evolution entries that connect them
-
-> Re-run `pnpm run seed` any time you want to reset to a clean demo state.
-
-### 5. Run in development
+Then start the development servers:
 
 ```bash
 # Terminal 1 — backend
@@ -115,19 +102,33 @@ cd packages/backend && pnpm dev
 cd packages/frontend && pnpm dev
 ```
 
-Frontend: http://localhost:5173  
-Backend: http://localhost:8000
+### 5. Seed Demo Data
 
-### 6. Run tests
+The demo walkthrough requires pre-built sessions to show the improvement arc.
+After starting the backend for the first time, run:
 
 ```bash
-pnpm test
+cd packages/backend
+pnpm seed
 ```
+
+This creates:
+
+- A **baseline session** (~42% score) with shallow answers and missed follow-ups
+- An **improved session** (~71% score) after strategy updates were applied
+- The strategy evolution entry connecting the two
+
+> Re-run `pnpm seed --reset` to wipe and re-seed demo data at any time.
+
+### 6. Open frontend
+
+Frontend: http://localhost:5173  
+Backend: http://localhost:8000
 
 ## Demo Walkthrough
 
 1. Sign in with Google (OAuth via Supabase)
-2. **Dashboard** — shows seeded baseline session at 42% overall score
+2. **Dashboard** — shows seeded baseline session at ~42% overall score
 3. **Start a new session** — role: Senior Backend Engineer, difficulty: Hard
 4. Complete 5–6 turns of interview
 5. **End session** — triggers evaluation + introspection + strategy update
