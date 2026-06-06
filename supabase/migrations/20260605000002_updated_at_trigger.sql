@@ -1,13 +1,22 @@
--- Auto-update updated_at on sessions row change
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Function to auto-update updated_at on any row modification
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-CREATE TRIGGER sessions_updated_at
+-- Apply trigger to sessions table
+CREATE TRIGGER sessions_set_updated_at
   BEFORE UPDATE ON public.sessions
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
+  EXECUTE FUNCTION public.set_updated_at();
+
+-- Apply trigger to strategies table as well (good practice)
+CREATE TRIGGER strategies_set_updated_at
+  BEFORE UPDATE ON public.strategies
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();

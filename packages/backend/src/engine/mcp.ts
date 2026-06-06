@@ -85,7 +85,7 @@ export async function getOrInitMcpClient(): Promise<Client> {
           _mcpHealthy = true;
           logger.info(
             { toolCount: _toolsCache?.tools?.length },
-            '[mcp] Client healthy, tools cached',
+            '[mcp] Client initialized and healthy — tools cached',
           );
           return client;
         } catch (err) {
