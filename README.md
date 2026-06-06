@@ -197,8 +197,6 @@ reflexa/
 │           ├── styles.css       # Global styles
 │           ├── components/      # Reusable UI components
 │           └── views/           # Page-level views
-├── docs/                        # Documentation
-│   └── CONTRACTS.md             # Human-readable API contracts
 ├── prompts/                     # LLM prompt templates
 ├── pnpm-workspace.yaml          # Workspace configuration
 ├── tsconfig.base.json           # Shared TypeScript config
