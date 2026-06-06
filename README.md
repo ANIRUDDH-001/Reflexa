@@ -21,6 +21,27 @@ Reflexa is an AI-powered interview preparation platform that continuously learns
 
 ## Architecture
 
+```mermaid
+graph TD
+    User([User]) -->|Web UI| Frontend[Frontend: Vanilla TS SPA]
+    Frontend <-->|REST API & SSE Streaming| Backend[Backend: Express 5 + Node.js]
+    subgraph Storage & Observability
+        Supabase[(Supabase PostgreSQL)]
+        PhoenixCloud[(Arize Phoenix Cloud)]
+    end
+    subgraph AI Engine
+        Gemini[Google Gemini API]
+        MCP[Phoenix MCP Server]
+    end
+    Backend <-->|Read/Write Sessions & Strategies| Supabase
+    Backend -->|OTLP Traces| PhoenixCloud
+    Backend <-->|1. Chat/Turns\n2. Session Evaluation\n3. Introspection| Gemini
+    %% Introspection loop details
+    Backend <-->|Tool Execution| MCP
+    MCP <-->|Fetch Trace Data| PhoenixCloud
+    Gemini -.->|Requests Tool Call| Backend
+```
+
 Reflexa is a monorepo with three packages:
 
 | Package             | Role                                                                                            |
