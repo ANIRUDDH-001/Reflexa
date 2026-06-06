@@ -23,7 +23,7 @@ export async function initMcpClient(): Promise<Client> {
     args: [mcpPath],
     env: {
       ...process.env,
-      PHOENIX_API_KEY: process.env.ARIZE_API_KEY || '',
+      PHOENIX_API_KEY: process.env.ARIZE_API_KEY || process.env.PHOENIX_API_KEY || '',
       PHOENIX_COLLECTOR_ENDPOINT: process.env.PHOENIX_COLLECTOR_ENDPOINT || '',
     } as Record<string, string>,
   });

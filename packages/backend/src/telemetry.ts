@@ -9,8 +9,11 @@ import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
 
-const ARIZE_PROJECT = process.env.ARIZE_PROJECT_NAME || 'reflexa';
-const hasApiKey = !!process.env.ARIZE_API_KEY;
+const ARIZE_PROJECT =
+  process.env.ARIZE_PROJECT_NAME || process.env.PHOENIX_PROJECT_NAME || 'reflexa';
+const API_KEY = process.env.ARIZE_API_KEY || process.env.PHOENIX_API_KEY || '';
+const SPACE_ID = process.env.ARIZE_SPACE_ID || 'U3BhY2U6NDU2NzU6VWQxVQ=='; // Fallback to user's Space ID
+const hasApiKey = !!API_KEY;
 
 // eslint-disable-next-line no-console
 console.log(`[Arize] Project: ${ARIZE_PROJECT} | API Key: ${hasApiKey ? 'set' : 'MISSING'}`);
@@ -24,8 +27,8 @@ const provider = new NodeTracerProvider({
       new OTLPTraceExporter({
         url: 'https://otlp.arize.com/v1/traces',
         headers: {
-          space_id: process.env.ARIZE_SPACE_ID || '',
-          api_key: process.env.ARIZE_API_KEY || '',
+          space_id: SPACE_ID,
+          api_key: API_KEY,
         },
       }),
     ),
