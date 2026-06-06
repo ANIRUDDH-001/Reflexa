@@ -75,26 +75,26 @@ const TEST_USER_ID = 'test-user-integration';
 
 describe('API Integration Tests', () => {
   describe('GET /config — traceBase URL construction', () => {
-    const originalEndpoint = process.env.PHOENIX_COLLECTOR_ENDPOINT;
-    const originalProject = process.env.PHOENIX_PROJECT_NAME;
+    const originalSpace = process.env.ARIZE_SPACE_ID;
+    const originalProject = process.env.ARIZE_PROJECT_NAME;
 
     afterEach(() => {
-      process.env.PHOENIX_COLLECTOR_ENDPOINT = originalEndpoint;
-      process.env.PHOENIX_PROJECT_NAME = originalProject;
+      process.env.ARIZE_SPACE_ID = originalSpace;
+      process.env.ARIZE_PROJECT_NAME = originalProject;
     });
 
     it('builds correct Phoenix Cloud URL with space slug and project', async () => {
-      process.env.PHOENIX_COLLECTOR_ENDPOINT = 'https://app.phoenix.arize.com/s/my-org/v1/traces';
-      process.env.PHOENIX_PROJECT_NAME = 'reflexa-prod';
+      process.env.ARIZE_SPACE_ID = 'my-org';
+      process.env.ARIZE_PROJECT_NAME = 'reflexa-prod';
       const res = await request(app).get('/config');
       expect(res.body.phoenixTraceBase).toBe(
         'https://app.phoenix.arize.com/s/my-org/projects/reflexa-prod/traces',
       );
     });
 
-    it('uses "default" project name when PHOENIX_PROJECT_NAME is not set', async () => {
-      process.env.PHOENIX_COLLECTOR_ENDPOINT = 'https://app.phoenix.arize.com/s/my-org/v1/traces';
-      delete process.env.PHOENIX_PROJECT_NAME;
+    it('uses "default" project name when ARIZE_PROJECT_NAME is not set', async () => {
+      process.env.ARIZE_SPACE_ID = 'my-org';
+      delete process.env.ARIZE_PROJECT_NAME;
       const res = await request(app).get('/config');
       expect(res.body.phoenixTraceBase).toBe(
         'https://app.phoenix.arize.com/s/my-org/projects/default/traces',
@@ -102,8 +102,8 @@ describe('API Integration Tests', () => {
     });
 
     it('handles self-hosted Phoenix URL', async () => {
-      process.env.PHOENIX_COLLECTOR_ENDPOINT = 'http://localhost:6006/v1/traces';
-      process.env.PHOENIX_PROJECT_NAME = 'dev';
+      delete process.env.ARIZE_SPACE_ID;
+      process.env.ARIZE_PROJECT_NAME = 'dev';
       const res = await request(app).get('/config');
       expect(res.body.phoenixTraceBase).toBe('http://localhost:6006/projects/dev/traces');
     });
