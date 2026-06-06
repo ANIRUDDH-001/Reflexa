@@ -41,10 +41,9 @@ function buildConversationHistory(
 }
 export const MODELS = [
   'gemini-2.5-flash', // GA — stable, fast primary
-  'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemini-3.0-flash',
+  'gemini-2.5-pro', // premium reasoning fallback
+  'gemini-2.0-flash', // older stable fallback
+  'gemini-2.0-flash-lite', // cost-efficient last resort
 ];
 
 export function getGoogleApiKey(): string {
@@ -205,20 +204,7 @@ export async function processTurn(
 
                   if (!rawText) throw new Error('Empty response from LLM');
                   const capturedTraceId = agentSpan.spanContext().traceId;
-
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  let parsed: any = {};
-                  try {
-                    parsed = JSON.parse(rawText);
-                  } catch (err) {
-                    const match = rawText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                    if (match) {
-                      parsed.agentMessage = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-                    } else {
-                      parsed.agentMessage = rawText.trim();
-                    }
-                  }
-
+                  const parsed = JSON.parse(rawText);
                   // Defensive validation — ensure all fields exist with correct types
                   const result: ProcessTurnResult = {
                     agentMessage: parsed.agentMessage || '',
@@ -344,7 +330,6 @@ export async function* processTurnStream(
 
             let fullText = '';
             let streamedMessageLength = 0;
-            let isRawText = false;
 
             for await (const chunk of stream) {
               if (clientSignal?.aborted) {
@@ -362,60 +347,32 @@ export async function* processTurnStream(
               if (token) {
                 fullText += token;
 
-                if (fullText.trimStart() && !fullText.trimStart().startsWith('{')) {
-                  isRawText = true;
-                }
-
-                if (isRawText) {
-                  if (fullText.length > streamedMessageLength) {
-                    const newToken = fullText.substring(streamedMessageLength);
-                    yield { type: 'token', text: newToken };
-                    streamedMessageLength = fullText.length;
-                  }
-                } else {
-                  const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
-                  if (match) {
-                    const extractedText = match[1];
-                    if (extractedText.length > streamedMessageLength) {
-                      const newToken = extractedText.substring(streamedMessageLength);
-                      const unescapedToken = newToken
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\');
-                      yield { type: 'token', text: unescapedToken };
-                      streamedMessageLength = extractedText.length;
-                    }
+                const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)/);
+                if (match) {
+                  const extractedText = match[1];
+                  if (extractedText.length > streamedMessageLength) {
+                    const newToken = extractedText.substring(streamedMessageLength);
+                    const unescapedToken = newToken
+                      .replace(/\\n/g, '\n')
+                      .replace(/\\"/g, '"')
+                      .replace(/\\\\/g, '\\');
+                    yield { type: 'token', text: unescapedToken };
+                    streamedMessageLength = extractedText.length;
                   }
                 }
               }
             }
 
             let extractedMessage = '';
-            if (isRawText) {
-              extractedMessage = fullText.trim();
+            try {
+              const parsed = JSON.parse(fullText);
+              extractedMessage = parsed.agentMessage ?? '';
+            } catch {
+              const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+              extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
               logger.warn(
                 { sessionId: state.id },
-                '[stream] Model ignored JSON schema, falling back to streaming raw text',
-              );
-            } else {
-              try {
-                const parsed = JSON.parse(fullText);
-                extractedMessage = parsed.agentMessage ?? '';
-              } catch {
-                const match = fullText.match(/"agentMessage"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                extractedMessage = match ? match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
-                logger.warn(
-                  { sessionId: state.id },
-                  '[stream] Could not parse structured response — using regex fallback',
-                );
-              }
-            }
-
-            if (!extractedMessage && fullText.trim()) {
-              extractedMessage = fullText.trim();
-              logger.warn(
-                { sessionId: state.id },
-                '[stream] Ultimate fallback to raw text extraction',
+                '[stream] Could not parse structured response — using regex fallback',
               );
             }
 
