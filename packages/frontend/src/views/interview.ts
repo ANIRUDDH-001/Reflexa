@@ -64,6 +64,7 @@ export async function renderInterview(
     <div class="font-bold text-gray-900 tracking-tight" id="header-role">Loading...</div>
     <div id="header-phase" class="ml-2 animate-fade-in-up"></div>
     <div id="header-progress" class="text-sm font-medium text-gray-500 ml-4 hidden md:block"></div>
+    <div id="header-focus-areas" class="ml-4"></div>
   `;
 
   const headerActions = document.createElement('div');
@@ -471,6 +472,15 @@ export async function renderInterview(
       document.getElementById('header-role')!.textContent = (
         session.config.role || 'Engineer'
       ).toUpperCase();
+
+      const focusAreasHtml = session.config?.focusAreas?.length
+        ? `<div class="focus-areas-tags flex gap-1 flex-wrap mt-1">
+            ${session.config.focusAreas
+              .map((fa: string) => `<span class="tag">${escapeHtml(fa)}</span>`)
+              .join('')}
+           </div>`
+        : '';
+      document.getElementById('header-focus-areas')!.innerHTML = focusAreasHtml;
 
       currentTurn = session.turnCount || 0;
       currentMaxTurns = parseInt(session.config.timeLimit || '20', 10);

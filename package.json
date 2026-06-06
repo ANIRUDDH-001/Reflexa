@@ -17,7 +17,11 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "node e2e.mjs",
-    "test:smoke": "node smoke-test.mjs"
+    "test:smoke": "node smoke-test.mjs",
+    "check:all": "pnpm -w -r run typecheck && pnpm -w -r run test --run && pnpm -w -r run lint && node scripts/security-check.js && echo 'ALL CHECKS PASSED'",
+    "check:types": "pnpm -w -r run typecheck",
+    "check:tests": "pnpm -w -r run test --run",
+    "check:security": "node scripts/security-check.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

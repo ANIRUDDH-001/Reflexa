@@ -33,20 +33,35 @@ import { shutdownTelemetry } from './telemetry';
 // CRITICAL variables: server will not start without these.
 // Use SKIP_ENV_VALIDATION=true in CI where stub values are injected.
 if (process.env.SKIP_ENV_VALIDATION !== 'true') {
-  const REQUIRED: string[] = [
+  const REQUIRED_ENV_VARS = [
     'GOOGLE_API_KEY',
-    'PHOENIX_API_KEY',
-    'PHOENIX_COLLECTOR_ENDPOINT',
     'SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-  ];
-  const missing = REQUIRED.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
+  ] as const;
+
+  const OPTIONAL_WITH_WARNING = [
+    'PHOENIX_API_KEY',
+    'PHOENIX_COLLECTOR_ENDPOINT',
+    'PHOENIX_PROJECT_NAME',
+  ] as const;
+
+  const missingCritical = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
+  if (missingCritical.length > 0) {
     // eslint-disable-next-line no-console
-    console.error(`[Reflexa] Missing required environment variables: ${missing.join(', ')}`);
-    // eslint-disable-next-line no-console
-    console.error('[Reflexa] Server will not start. Set these variables and restart.');
+    console.error(
+      `[startup] FATAL: Missing required environment variables: ${missingCritical.join(', ')}`,
+    );
     process.exit(1);
+  }
+
+  const missingOptional = OPTIONAL_WITH_WARNING.filter((v) => !process.env[v]);
+  if (missingOptional.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[startup] WARNING: Missing optional environment variables: ${missingOptional.join(', ')}`,
+    );
+    // eslint-disable-next-line no-console
+    console.warn('[startup] Phoenix tracing will be disabled');
   }
 }
 
@@ -145,7 +160,32 @@ const httpLogger = pinoHttp({
   redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.text', 'req.body.config'],
 });
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          // Arize Phoenix SDK loads from CDN in some configurations
+          'https://cdn.arize.com',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for Tailwind
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: [
+          "'self'",
+          'https://app.phoenix.arize.com', // Phoenix traces
+          process.env.SUPABASE_URL || '', // Supabase (frontend uses anon key)
+        ].filter(Boolean),
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // required for some browser API access
+  }),
+);
 app.use(httpLogger);
 
 // Health check — Cloud Run calls this to verify the container is alive.
@@ -206,7 +246,8 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 /**
  * Build the Phoenix trace viewer base URL from environment variables.
@@ -411,6 +452,13 @@ app.post('/session/:id/turn/stream', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
   }
 
+  if (parsed.data.text.length > 2000) {
+    return res.status(400).json({
+      error: 'Message too long',
+      detail: 'Maximum message length is 2000 characters',
+    });
+  }
+
   const session = await requireSessionOwnership(req, res, sessionId);
   if (!session) return;
   if (session.status !== 'in_progress') {
@@ -586,7 +634,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
     const introspection = await runIntrospection(sessionId, evalScore);
 
     // Save new strategy version
-    const newVersionId = `v${Date.now()}`;
+    const newVersionId = `v${Date.now()}-${randomUUID().slice(0, 8)}`;
     try {
       await saveStrategy(
         newVersionId,
@@ -863,13 +911,22 @@ app.get('/session/:id/compare', async (req: Request, res: Response) => {
   if (!session) return;
 
   const history = await getHistorySessions(session.userId);
-  const currentIndex = history.findIndex((h) => h.id === sessionId);
 
-  if (currentIndex === -1 || currentIndex === history.length - 1) {
-    return res.json({ comparison: null }); // No previous session
+  // Sort DESC explicitly (newest first) — don't rely on DB ordering
+  const sortedHistory = [...history].sort(
+    (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime(),
+  );
+
+  const currentIndex = sortedHistory.findIndex((s) => s.id === sessionId);
+  if (currentIndex === -1) {
+    return res.json({ comparison: null, message: 'Session not found in history' });
   }
 
-  const previousSession = history[currentIndex + 1];
+  // currentIndex + 1 = the session immediately before this one (DESC order)
+  const previousSession = sortedHistory[currentIndex + 1];
+  if (!previousSession) {
+    return res.json({ comparison: null, message: 'No previous session to compare' });
+  }
 
   const currentCandRubric = session.evaluation?.candidateRubric;
   const previousCandRubric = (

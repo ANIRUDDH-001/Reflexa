@@ -5,15 +5,18 @@ import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { shutdownMcpClient } from './engine/mcp';
 
-const projectName =
-  process.env.PHOENIX_PROJECT_NAME || process.env.OPENINFERENCE_PROJECT_NAME || 'default';
+const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'reflexa';
 const hasApiKey = !!process.env.PHOENIX_API_KEY;
 
 // eslint-disable-next-line no-console
-console.log(`[Phoenix] Project: ${projectName} | API Key: ${hasApiKey ? 'set' : 'MISSING'}`);
+console.log(`[Phoenix] Project: ${PHOENIX_PROJECT} | API Key: ${hasApiKey ? 'set' : 'MISSING'}`);
 
 const provider = register({
-  projectName,
+  projectName: PHOENIX_PROJECT,
+  url: process.env.PHOENIX_COLLECTOR_ENDPOINT,
+  headers: {
+    api_key: process.env.PHOENIX_API_KEY || '',
+  },
 });
 
 registerInstrumentations({
