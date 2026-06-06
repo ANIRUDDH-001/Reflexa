@@ -23,14 +23,16 @@ package-lock.json
 # Editor
 .vscode/settings.json
 *.swp
-.DS_Store
 
 # Environment
 packages/backend/.env
 packages/frontend/.env.local
 .env.local
+
 # Internal planning docs — never commit these
 docs/*_BLUEPRINT.md
 docs/*_PLAN.md
 docs/INTERNAL_*.md
 docs/DRAFT_*.md
+e2e.mjs
+smoke-test.mjs

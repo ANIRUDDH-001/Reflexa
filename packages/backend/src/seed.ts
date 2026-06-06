@@ -12,14 +12,31 @@
 import { saveSession, saveStrategy, db } from './state/db';
 import { BackendSessionState } from './state/types';
 
-const RESET = process.argv.includes('--reset');
+const RESET_MODE = process.argv.includes('--reset');
+
+const SEED_SESSION_IDS = ['demo-session-1', 'demo-session-2'];
+const SEED_STRATEGY_VERSIONS = ['v1.0.0', 'v2.0.0'];
+
+async function resetSeedData(): Promise<void> {
+  console.log('[seed] Resetting existing seed data...');
+
+  // Delete seeded sessions
+  const { error: sessErr } = await db().from('sessions').delete().in('id', SEED_SESSION_IDS);
+  if (sessErr) console.warn('[seed] Warning: session reset error:', sessErr.message);
+
+  // Delete seeded strategies
+  const { error: stratErr } = await db()
+    .from('strategies')
+    .delete()
+    .in('version', SEED_STRATEGY_VERSIONS);
+  if (stratErr) console.warn('[seed] Warning: strategy reset error:', stratErr.message);
+
+  console.log('[seed] Reset complete.');
+}
 
 async function seed() {
-  if (RESET) {
-    console.log('[seed] Resetting demo data...');
-    await db().from('sessions').delete().in('id', ['demo-session-1', 'demo-session-2']);
-    await db().from('strategies').delete().eq('version', 'v1717600000001');
-    console.log('[seed] Reset complete.');
+  if (RESET_MODE) {
+    await resetSeedData();
   }
   /* ------------------------------------------------------------------ */
   /*  1. Baseline strategy v1.0.0                                       */
