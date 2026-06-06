@@ -171,6 +171,15 @@ pnpm run typecheck
 pnpm run lint
 ```
 
+## Deployment
+
+Reflexa uses Google Cloud Run for backend deployment. A complete step-by-step guide is provided in **[docs/deploy-gcp.md](./docs/deploy-gcp.md)**.
+
+To automate deployment via Google Cloud Build:
+
+1. Configure Secret Manager with your environment variables.
+2. Run `gcloud builds submit --config cloudbuild.yaml .`
+
 ## Project Structure
 
 ```
