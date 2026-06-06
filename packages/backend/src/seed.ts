@@ -13,6 +13,7 @@ import { saveSession, saveStrategy, db } from './state/db';
 import { BackendSessionState } from './state/types';
 
 const RESET_MODE = process.argv.includes('--reset');
+const SEED_USER_ID = process.env.SEED_USER_ID || 'demo-user';
 
 const SEED_SESSION_IDS = ['demo-session-1', 'demo-session-2'];
 const SEED_STRATEGY_VERSIONS = ['v1.0.0', 'v2.0.0'];
@@ -68,7 +69,7 @@ async function seed() {
 
   const session1: BackendSessionState = {
     id: 'demo-session-1',
-    userId: 'demo-user',
+    userId: SEED_USER_ID,
     startedAt: session1StartedAt,
     endedAt: session1EndedAt,
     status: 'completed',
@@ -194,7 +195,7 @@ async function seed() {
 
   const session2: BackendSessionState = {
     id: 'demo-session-2',
-    userId: 'demo-user',
+    userId: SEED_USER_ID,
     startedAt: session2StartedAt,
     endedAt: session2EndedAt,
     status: 'completed',
@@ -320,7 +321,7 @@ async function seed() {
   console.log('\n🌱 Seed complete:');
   console.log('   • Strategies : v1.0.0 (baseline, 3 rules), v2.0.0 (improved, 5 rules)');
   console.log('   • Sessions   : demo-session-1 (score 42), demo-session-2 (score 71)');
-  console.log('   • User       : demo-user');
+  console.log(`   • User       : ${SEED_USER_ID}`);
 }
 
 seed().catch((err) => {
