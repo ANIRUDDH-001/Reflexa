@@ -66,7 +66,7 @@ export function sanitiseHtml(value: unknown): string {
     'sub',
     'sup',
   ]);
-  const allowedAttrs = new Set(['style', 'class', 'href', 'target', 'rel', 'src', 'alt']);
+  const allowedAttrs = new Set(['class', 'href', 'target', 'rel', 'src', 'alt']);
   const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
 
   const toRemove: Element[] = [];
@@ -77,7 +77,12 @@ export function sanitiseHtml(value: unknown): string {
     } else {
       // Remove disallowed attributes from allowed tags
       Array.from(node.attributes).forEach((attr) => {
-        if (!allowedAttrs.has(attr.name.toLowerCase())) {
+        const attrName = attr.name.toLowerCase();
+        // Exception: allow style on syntax highlighting elements (as expected by Pass 3 logic)
+        if (attrName === 'style' && ['code', 'pre', 'span'].includes(node!.tagName.toLowerCase())) {
+          return;
+        }
+        if (!allowedAttrs.has(attrName)) {
           node!.removeAttribute(attr.name);
         }
       });
@@ -91,35 +96,41 @@ export function sanitiseHtml(value: unknown): string {
     el.replaceWith(text);
   });
 
-  // Strip javascript: protocol from href/src attributes
-  const allElements = template.content.querySelectorAll('[href],[src]');
-  allElements.forEach((el) => {
+  // ── Pass 2: Strip javascript: protocol from href and src ──────────────
+  const linkedElements = Array.from(
+    template.content.querySelectorAll<HTMLElement>('[href], [src]'),
+  );
+  for (const el of linkedElements) {
     const href = el.getAttribute('href');
-    if (href && /^\s*javascript:/i.test(href)) {
+    if (href && /^\s*javascript:/i.test(href.trim())) {
       el.removeAttribute('href');
     }
     const src = el.getAttribute('src');
-    if (src && /^\s*javascript:/i.test(src)) {
+    if (src && /^\s*javascript:/i.test(src.trim())) {
       el.removeAttribute('src');
     }
-  });
+    // Also strip data: URIs from src (can embed malicious content)
+    if (src && /^\s*data:/i.test(src.trim())) {
+      el.removeAttribute('src');
+    }
+  }
 
-  // Strip style attributes from non-code elements (allow only on code/pre for highlighting)
-  // style on arbitrary elements enables CSS injection and UI spoofing
-  const styledElements = template.content.querySelectorAll('[style]');
-  styledElements.forEach((el) => {
+  // ── Pass 3: Strip style attribute from non-preformatted elements ──────
+  // Allow style only on <code>, <pre>, <span> (for syntax highlighting)
+  const styledElements = Array.from(template.content.querySelectorAll<HTMLElement>('[style]'));
+  for (const el of styledElements) {
     const tag = el.tagName.toLowerCase();
-    if (tag !== 'code' && tag !== 'pre' && tag !== 'span') {
+    if (!['code', 'pre', 'span'].includes(tag)) {
       el.removeAttribute('style');
     }
-  });
+  }
 
-  // Force safe link attributes on all <a> tags
-  const links = template.content.querySelectorAll('a[href]');
-  links.forEach((link) => {
+  // ── Pass 4: Force safe attributes on all outbound links ───────────────
+  const outboundLinks = Array.from(template.content.querySelectorAll<HTMLAnchorElement>('a[href]'));
+  for (const link of outboundLinks) {
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
-  });
+  }
 
   return template.innerHTML;
 }
