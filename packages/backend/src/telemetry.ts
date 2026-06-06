@@ -1,4 +1,5 @@
 import { MCPInstrumentation } from '@arizeai/openinference-instrumentation-mcp';
+import { SEMRESATTRS_PROJECT_NAME } from '@arizeai/openinference-semantic-conventions';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
@@ -23,6 +24,7 @@ console.log(`[Arize] Project: ${ARIZE_PROJECT} | API Key: ${hasApiKey ? 'set' : 
 const provider = new NodeTracerProvider({
   resource: resourceFromAttributes({
     [ATTR_SERVICE_NAME]: ARIZE_PROJECT,
+    [SEMRESATTRS_PROJECT_NAME]: ARIZE_PROJECT,
   }),
   spanProcessors: [
     new SimpleSpanProcessor(
@@ -30,7 +32,7 @@ const provider = new NodeTracerProvider({
         url: 'https://otlp.arize.com/v1/traces',
         headers: {
           space_id: SPACE_ID,
-          api_key: API_KEY,
+          Authorization: `Bearer ${API_KEY}`,
         },
       }),
     ),
