@@ -22,7 +22,7 @@ function getArizeProjectName(): string {
     process.env.ARIZE_PROJECT_NAME?.trim() ||
     process.env.PHOENIX_PROJECT_NAME?.trim() ||
     DEFAULT_ARIZE_PROJECT_NAME
-  );
+  ).toLowerCase();
 }
 
 function getCollectorEndpoint(): string {
