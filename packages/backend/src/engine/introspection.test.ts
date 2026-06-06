@@ -167,11 +167,11 @@ describe('runIntrospection', () => {
 });
 
 describe('runIntrospection — with real MCP tools (integration)', () => {
-  // These tests require real Phoenix credentials — skip in CI
-  const SKIP = !process.env.PHOENIX_API_KEY;
+  // These tests require real Arize credentials — skip in CI
+  const SKIP = !process.env.ARIZE_API_KEY;
 
   it.skipIf(SKIP)('returns non-fallback result when MCP is connected', async () => {
-    // Use an actual session ID from a completed session in Phoenix
+    // Use an actual session ID from a completed session in Arize
     const sessionId = process.env.TEST_SESSION_ID || 'skip';
     if (sessionId === 'skip') return;
 

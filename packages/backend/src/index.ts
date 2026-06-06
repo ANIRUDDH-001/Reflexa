@@ -11,7 +11,7 @@ import { runIntrospection } from './engine/introspection';
 import {
   processTurn,
   generateEvaluation,
-  logEvalToPhoenix,
+  logEvalToArize,
   processTurnStream,
   CandidateAssessment,
 } from './engine/llm';
@@ -247,30 +247,6 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-/**
- * Build the Phoenix trace viewer base URL from environment variables.
- * Used by both GET /config and GET /session/:id to avoid duplication.
- */
-function getPhoenixTraceBase(): string {
-  const ARIZE_PROJECT = process.env.ARIZE_PROJECT_NAME || 'default';
-  let traceBase = 'https://app.phoenix.arize.com';
-
-  const spaceId = process.env.ARIZE_SPACE_ID || '';
-  if (spaceId) {
-    traceBase = `https://app.phoenix.arize.com/s/${spaceId}/projects/${ARIZE_PROJECT}/traces`;
-  } else {
-    traceBase = `http://localhost:6006/projects/${ARIZE_PROJECT}/traces`;
-  }
-  return traceBase;
-}
-
-// Expose dynamic configuration to the frontend
-app.get('/config', (req: Request, res: Response) => {
-  res.json({
-    phoenixTraceBase: getPhoenixTraceBase(),
-  });
-});
-
 // Apply strict limit specifically to session-creating and AI-generating endpoints
 app.use('/session', aiOperationLimiter); // POST /session (create)
 app.use('/session/:id/turn', aiOperationLimiter); // POST /session/:id/turn*
@@ -345,14 +321,8 @@ app.get('/session/:id', async (req: Request, res: Response) => {
   const session = await requireSessionOwnership(req, res, sessionId);
   if (!session) return;
 
-  const traceBase = getPhoenixTraceBase();
-  const collector = process.env.PHOENIX_COLLECTOR_ENDPOINT || '';
-  const phoenixTraceUrl =
-    session.evalTraceId && collector ? `${traceBase}/${session.evalTraceId}` : null;
-
   res.json({
     session,
-    phoenixTraceUrl,
     strategyVersion: session.strategyVersion,
     activeRulesCount: session.activeStrategyRules?.length || 0,
   });
@@ -706,14 +676,14 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
 
     // Fire and forget evaluation logging
     if (evaluation.traceId) {
-      logEvalToPhoenix(evaluation.traceId, evaluation.traceId, {
+      logEvalToArize(evaluation.traceId, evaluation.traceId, {
         overall: evaluation.rubric?.overall ?? 0,
         candidateOverall: evaluation.candidateRubric?.overall ?? 0,
         relevance: evaluation.rubric?.relevance ?? 0,
         depth: evaluation.rubric?.depth ?? 0,
         clarity: evaluation.rubric?.clarity ?? 0,
         opportunityCoverage: evaluation.rubric?.opportunityCoverage ?? 0,
-      }).catch((err) => logger.error({ err }, 'Failed to log eval to Phoenix'));
+      }).catch((err) => logger.error({ err }, 'Failed to log eval to Arize'));
     }
 
     return res.json(responsePayload);

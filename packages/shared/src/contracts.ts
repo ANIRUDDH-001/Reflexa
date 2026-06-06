@@ -38,7 +38,6 @@ export const CreateSessionResponse = z
 export const GetSessionResponse = z
   .object({
     session: InterviewSession,
-    phoenixTraceUrl: z.string().nullable().optional(),
     strategyVersion: z.string().optional(),
     activeRulesCount: z.number().optional(),
   })

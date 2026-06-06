@@ -16,7 +16,7 @@ export interface StrategyUpdateResult {
   newRules: string[];
 }
 
-const PHOENIX_PROJECT = process.env.PHOENIX_PROJECT_NAME || 'default';
+const ARIZE_PROJECT = process.env.ARIZE_PROJECT_NAME || 'default';
 
 export async function runIntrospection(
   sessionId: string,
@@ -52,7 +52,7 @@ export async function runIntrospection(
 You are a quality assurance agent evaluating the performance of an AI technical interviewer.
 
 Your job:
-1. Use the available Phoenix MCP tools to retrieve traces for session: ${sessionId} (scored ${evalScore}/100)
+1. Use the available Arize MCP tools to retrieve traces for session: ${sessionId} (scored ${evalScore}/100)
 2. Analyse the interviewer's behaviour across all turns
 3. Identify specific failure patterns (e.g. "failed to probe shallow answers", "inconsistent topic focus")
 4. Generate concrete improvement rules for the next session
@@ -84,14 +84,14 @@ Example newRules:
               },
             });
 
-            // ── Task 5: include Phoenix project name explicitly ───────────────
+            // ── Task 5: include Arize project name explicitly ───────────────
             const introspectionContext =
-              `Phoenix project name: "${PHOENIX_PROJECT}"\n` +
+              `Arize project name: "${ARIZE_PROJECT}"\n` +
               `Session ID to introspect: "${sessionId}"\n` +
               `Session evaluation overall score: ${evalScore ?? 'unknown'}\n\n` +
-              `Use the Phoenix MCP tools to retrieve the traces and evaluation scores for this session, ` +
+              `Use the Arize MCP tools to retrieve the traces and evaluation scores for this session, ` +
               `then identify the weakest turns and generate a StrategyUpdate to improve future sessions. ` +
-              `Start by calling get_traces with project_name="${PHOENIX_PROJECT}" and filter by the session ID above.`;
+              `Start by calling get_traces with project_name="${ARIZE_PROJECT}" and filter by the session ID above.`;
 
             logger.info(`Starting introspection loop for session ${sessionId}...`);
 

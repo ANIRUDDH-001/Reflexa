@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { describe, it, expect, beforeAll, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { app } from './index';
 
 vi.mock('./state/db', () => {
@@ -74,41 +74,6 @@ vi.mock('./engine/llm', () => ({
 const TEST_USER_ID = 'test-user-integration';
 
 describe('API Integration Tests', () => {
-  describe('GET /config — traceBase URL construction', () => {
-    const originalSpace = process.env.ARIZE_SPACE_ID;
-    const originalProject = process.env.ARIZE_PROJECT_NAME;
-
-    afterEach(() => {
-      process.env.ARIZE_SPACE_ID = originalSpace;
-      process.env.ARIZE_PROJECT_NAME = originalProject;
-    });
-
-    it('builds correct Phoenix Cloud URL with space slug and project', async () => {
-      process.env.ARIZE_SPACE_ID = 'my-org';
-      process.env.ARIZE_PROJECT_NAME = 'reflexa-prod';
-      const res = await request(app).get('/config');
-      expect(res.body.phoenixTraceBase).toBe(
-        'https://app.phoenix.arize.com/s/my-org/projects/reflexa-prod/traces',
-      );
-    });
-
-    it('uses "default" project name when ARIZE_PROJECT_NAME is not set', async () => {
-      process.env.ARIZE_SPACE_ID = 'my-org';
-      delete process.env.ARIZE_PROJECT_NAME;
-      const res = await request(app).get('/config');
-      expect(res.body.phoenixTraceBase).toBe(
-        'https://app.phoenix.arize.com/s/my-org/projects/default/traces',
-      );
-    });
-
-    it('handles self-hosted Phoenix URL', async () => {
-      delete process.env.ARIZE_SPACE_ID;
-      process.env.ARIZE_PROJECT_NAME = 'dev';
-      const res = await request(app).get('/config');
-      expect(res.body.phoenixTraceBase).toBe('http://localhost:6006/projects/dev/traces');
-    });
-  });
-
   describe('GET /health', () => {
     it('returns 200 with status ok and a timestamp', async () => {
       const res = await request(app).get('/health');

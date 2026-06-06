@@ -23,7 +23,7 @@ export async function initMcpClient(): Promise<Client> {
     args: [mcpPath],
     env: {
       ...process.env,
-      PHOENIX_API_KEY: process.env.PHOENIX_API_KEY || '',
+      PHOENIX_API_KEY: process.env.ARIZE_API_KEY || '',
       PHOENIX_COLLECTOR_ENDPOINT: process.env.PHOENIX_COLLECTOR_ENDPOINT || '',
     } as Record<string, string>,
   });
@@ -97,7 +97,7 @@ export async function getOrInitMcpClient(): Promise<Client> {
       .catch((err) => {
         _initPromise = null;
         throw new Error(
-          `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and PHOENIX_API_KEY is set. Original error: ${
+          `Phoenix MCP server is unavailable. Ensure @arizeai/phoenix-mcp is installed and ARIZE_API_KEY is set. Original error: ${
             err instanceof Error ? err.message : String(err)
           }`,
         );

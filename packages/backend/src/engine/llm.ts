@@ -700,7 +700,7 @@ export interface EvalSessionConfig {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function logEvalToPhoenix(
+export async function logEvalToArize(
   traceId: string,
   spanId: string,
   scores: Record<string, number>,
@@ -710,7 +710,7 @@ export async function logEvalToPhoenix(
   if (!arizeSpaceId || !arizeApiKey) return;
 
   try {
-    // Send to Arize AX Phoenix Cloud
+    // Send to Arize AX Evaluators API
     await fetch(`https://app.phoenix.arize.com/v1/evaluations`, {
       method: 'POST',
       headers: {

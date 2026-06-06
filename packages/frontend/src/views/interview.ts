@@ -1,4 +1,4 @@
-import { api, sendTurnStream, PHOENIX_TRACE_BASE, invalidateSessionsCache } from '../api';
+import { api, sendTurnStream, invalidateSessionsCache } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
 import { createCard } from '../components/card';
@@ -190,14 +190,7 @@ export async function renderInterview(
     msgEl.className = 'message message--' + msg.role + (msg.isError ? ' message--error' : '');
     msgEl.dataset.messageId = msg.id;
 
-    const traceHtml =
-      msg.traceId && msg.traceId !== 'unknown' && /^[0-9a-f]{32}$/.test(msg.traceId)
-        ? `<div class="trace-link-wrap">
-             <a class="trace-link" href="${PHOENIX_TRACE_BASE}/${msg.traceId}" target="_blank" rel="noopener noreferrer">
-               <i data-lucide="search" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></i> View in Phoenix
-             </a>
-           </div>`
-        : '';
+    const traceHtml = '';
 
     // Safe: escaped msg.text and traceHtml
     msgEl.innerHTML = `
@@ -294,24 +287,7 @@ export async function renderInterview(
             const textEl = aiBubble.querySelector('#streaming-bubble-text');
             if (textEl) textEl.removeAttribute('id');
 
-            // Append Phoenix trace link
-            if (
-              event.traceId &&
-              event.traceId !== 'unknown' &&
-              /^[0-9a-f]{32}$/.test(event.traceId)
-            ) {
-              const linkWrap = document.createElement('div');
-              linkWrap.className = 'trace-link-wrap';
-              const link = document.createElement('a');
-              link.className = 'trace-link';
-              link.href = `${PHOENIX_TRACE_BASE}/${event.traceId}`;
-              link.target = '_blank';
-              link.rel = 'noopener noreferrer';
-              link.innerHTML =
-                '<i data-lucide="search" style="width:14px;height:14px;display:inline-block;vertical-align:middle"></i> View in Phoenix';
-              linkWrap.appendChild(link);
-              aiBubble.querySelector('.message__bubble')?.appendChild(linkWrap);
-            }
+            // Removed Phoenix trace link appendage
           }
 
           messages.push({
