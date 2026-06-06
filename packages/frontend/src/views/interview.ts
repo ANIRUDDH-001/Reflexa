@@ -1,3 +1,4 @@
+import { marked } from 'marked';
 import { api, sendTurnStream, invalidateSessionsCache } from '../api';
 import { createBadge } from '../components/badge';
 import { createButton } from '../components/button';
@@ -5,7 +6,7 @@ import { createCard } from '../components/card';
 import { createProgress } from '../components/progress';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
-import { escapeHtml } from '../utils/dom';
+import { escapeHtml, sanitiseHtml } from '../utils/dom';
 
 interface Message {
   id: string;
@@ -192,14 +193,16 @@ export async function renderInterview(
 
     const traceHtml = '';
 
-    // Safe: escaped msg.text and traceHtml
+    const contentHtml =
+      msg.role === 'ai' && !msg.isError
+        ? sanitiseHtml(marked.parse(msg.text) as string)
+        : escapeHtml(msg.text).replace(/\n/g, '<br>');
+
+    // Safe: escaped/sanitised HTML
     msgEl.innerHTML = `
       <div class="message__avatar"><i data-lucide="${msg.role === 'ai' ? 'bot' : 'user'}"></i></div>
       <div class="message__content">
-        <div class="message__bubble">${escapeHtml(msg.text).replace(
-          /\n/g,
-          '<br>',
-        )}${traceHtml}</div>
+        <div class="message__bubble prose prose-sm max-w-none">${contentHtml}${traceHtml}</div>
       </div>
     `;
     return msgEl;
