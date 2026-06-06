@@ -473,7 +473,7 @@ export async function renderAnalysis(
     if (isComparing && comparison) {
       const compLabel = document.createElement('div');
       compLabel.className = 'col-span-full text-sm text-gray-500 mb-2 mt-2 italic';
-      compLabel.textContent = comparison.behaviorChanges;
+      compLabel.textContent = comparison.summary || comparison.behaviorChanges;
       scoreGrid.appendChild(compLabel);
     }
 

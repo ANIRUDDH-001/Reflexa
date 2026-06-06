@@ -929,43 +929,54 @@ app.get('/session/:id/compare', async (req: Request, res: Response) => {
   }
 
   const currentCandRubric = session.evaluation?.candidateRubric;
-  const previousCandRubric = (
+  const prevCandRubric = (
     previousSession as { evaluation?: { candidateRubric?: Record<string, number> } }
   ).evaluation?.candidateRubric;
 
-  const currentRubric = session.evaluation?.rubric;
-  const previousRubric = (previousSession as { evaluation?: { rubric?: Record<string, number> } })
-    .evaluation?.rubric;
-
-  if (!currentCandRubric || !previousCandRubric) {
-    return res.json({ comparison: null });
+  if (!currentCandRubric || !prevCandRubric) {
+    return res.json({
+      comparison: null,
+      reason: 'Missing candidate rubric on one or both sessions',
+    });
   }
 
-  // Primary delta: candidate performance (what users care about)
-  const candidateDelta: Record<string, number> = {};
-  for (const key of Object.keys(currentCandRubric)) {
-    candidateDelta[key] =
-      (currentCandRubric[key as keyof typeof currentCandRubric] || 0) -
-      (previousCandRubric[key] || 0);
+  // Compute per-dimension deltas from candidateRubric
+  const delta: Record<string, number> = {};
+  const allKeys = new Set([...Object.keys(currentCandRubric), ...Object.keys(prevCandRubric)]);
+  for (const key of allKeys) {
+    const current =
+      typeof currentCandRubric[key as keyof typeof currentCandRubric] === 'number'
+        ? currentCandRubric[key as keyof typeof currentCandRubric]
+        : 0;
+    const previous = typeof prevCandRubric[key] === 'number' ? prevCandRubric[key] : 0;
+    delta[key] = current - previous;
   }
 
-  // Secondary delta: interviewer quality (for completeness)
+  // Also compute interviewer quality delta for informational purposes
+  const currentInterviewerRubric = session.evaluation?.rubric;
+  const prevInterviewerRubric = (
+    previousSession as { evaluation?: { rubric?: Record<string, number> } }
+  ).evaluation?.rubric;
   const interviewerDelta: Record<string, number> = {};
-  if (currentRubric && previousRubric) {
-    for (const key of Object.keys(currentRubric)) {
-      interviewerDelta[key] =
-        (currentRubric[key as keyof typeof currentRubric] || 0) - (previousRubric[key] || 0);
+  if (currentInterviewerRubric && prevInterviewerRubric) {
+    for (const key of Object.keys(currentInterviewerRubric)) {
+      const c =
+        typeof currentInterviewerRubric[key as keyof typeof currentInterviewerRubric] === 'number'
+          ? currentInterviewerRubric[key as keyof typeof currentInterviewerRubric]
+          : 0;
+      const p = typeof prevInterviewerRubric[key] === 'number' ? prevInterviewerRubric[key] : 0;
+      interviewerDelta[key] = c - p;
     }
   }
 
   const comparison = {
     baselineSessionId: previousSession.id,
     currentSessionId: session.id,
-    delta: candidateDelta,
-    interviewerDelta,
-    behaviorChanges: `Compared to the previous session, your performance changed by ${
-      candidateDelta.overall > 0 ? '+' : ''
-    }${candidateDelta.overall ?? 0} points overall.`,
+    delta, // ← candidate performance delta (primary)
+    interviewerDelta, // ← AI interviewer quality delta (secondary, informational)
+    summary: `Your overall score ${delta.overall >= 0 ? 'improved by' : 'decreased by'} ${Math.abs(
+      delta.overall ?? 0,
+    )} points compared to your previous session.`,
   };
 
   return res.json({ comparison });
