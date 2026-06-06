@@ -11,8 +11,8 @@ let _toolsCache: Awaited<ReturnType<Client['listTools']>> | null = null;
 let _mcpHealthy = false;
 
 export async function initMcpClient(): Promise<Client> {
-  if (process.env.PHOENIX_MCP_ENABLED === 'false') {
-    throw new Error('[mcp] Phoenix MCP is disabled via PHOENIX_MCP_ENABLED=false');
+  if (process.env.ARIZE_MCP_ENABLED === 'false' || process.env.PHOENIX_MCP_ENABLED === 'false') {
+    throw new Error('[mcp] Phoenix MCP is disabled via ARIZE_MCP_ENABLED=false');
   }
   logger.info('Initializing Phoenix MCP Client...');
 

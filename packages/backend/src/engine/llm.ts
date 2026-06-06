@@ -705,9 +705,9 @@ export async function logEvalToArize(
   spanId: string,
   scores: Record<string, number>,
 ): Promise<void> {
-  const arizeSpaceId = process.env.ARIZE_SPACE_ID || 'U3BhY2U6NDU2NzU6VWQxVQ==';
-  const arizeApiKey = process.env.ARIZE_API_KEY || process.env.PHOENIX_API_KEY;
-  if (!arizeApiKey) return;
+  const arizeSpaceId = process.env.ARIZE_SPACE_ID?.trim();
+  const arizeApiKey = process.env.ARIZE_API_KEY?.trim() || process.env.PHOENIX_API_KEY?.trim();
+  if (!arizeApiKey || !arizeSpaceId) return;
 
   try {
     // Send to Arize AX Evaluators API

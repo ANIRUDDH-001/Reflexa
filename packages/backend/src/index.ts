@@ -1,4 +1,7 @@
 import 'dotenv/config';
+// eslint-disable-next-line import/order
+import { initializeTelemetry, shutdownTelemetry } from './telemetry';
+initializeTelemetry();
 import { randomUUID } from 'crypto';
 import { APIContracts } from '@reflexa/shared';
 import cors from 'cors';
@@ -29,7 +32,6 @@ import {
 } from './state/db';
 import 'express-async-errors';
 import { BackendSessionState } from './state/types';
-import { shutdownTelemetry } from './telemetry';
 
 // ── Startup environment validation ────────────────────────────
 // CRITICAL variables: server will not start without these.
@@ -85,7 +87,7 @@ if (!process.env.FRONTEND_ORIGIN) {
 if (!process.env.ARIZE_PROJECT_NAME) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[Reflexa] ARIZE_PROJECT_NAME not set — defaulting to "default". ' +
+    '[Reflexa] ARIZE_PROJECT_NAME not set — defaulting to "reflexa-backend". ' +
       'Set this to your Arize project name for correct trace links.',
   );
 }
