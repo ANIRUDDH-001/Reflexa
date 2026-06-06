@@ -11,8 +11,10 @@ import { shutdownMcpClient } from './engine/mcp';
 
 const ARIZE_PROJECT =
   process.env.ARIZE_PROJECT_NAME || process.env.PHOENIX_PROJECT_NAME || 'reflexa';
-const API_KEY = process.env.ARIZE_API_KEY || process.env.PHOENIX_API_KEY || '';
-const SPACE_ID = process.env.ARIZE_SPACE_ID || 'U3BhY2U6NDU2NzU6VWQxVQ=='; // Fallback to user's Space ID
+const API_KEY =
+  process.env.ARIZE_API_KEY ||
+  'ak-75620c3c-10a6-414b-931e-1c1f2c4c1ac8-tGlxasthdGjlN8pFQMnM9PsEP7NxFCLj'; // HOTFIX: Hardcoded to user's Arize AX key
+const SPACE_ID = process.env.ARIZE_SPACE_ID || 'U3BhY2U6NDU2NzU6VWQxVQ=='; // HOTFIX: Hardcoded to user's Space ID
 const hasApiKey = !!API_KEY;
 
 // eslint-disable-next-line no-console
