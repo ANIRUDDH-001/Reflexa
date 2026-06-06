@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api, invalidateSessionsCache } from '../api';
 import { createButton } from '../components/button';
 import { showToast } from '../components/toast';
 import { refreshIcons } from '../lucide';
@@ -157,6 +157,7 @@ export function renderSession(container: HTMLElement): void {
             startBtn.classList.add('btn--loading');
             try {
               const response = await api.createSession(queuedConfig);
+              invalidateSessionsCache();
               localStorage.removeItem('reflexa_queued_session'); // Clear after launch
               window.location.hash = `#/interview/${response.session.id}`;
             } catch (err) {
@@ -499,6 +500,7 @@ function renderStep4(): HTMLElement {
       startBtn.classList.add('btn--loading');
       try {
         const response = await api.createSession(config);
+        invalidateSessionsCache();
         const sessionId = response.session.id;
         window.location.hash = `#/interview/${sessionId}`;
       } catch (err) {
