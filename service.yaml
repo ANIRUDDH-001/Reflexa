@@ -1,0 +1,55 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: reflexa
+  labels:
+    cloud.googleapis.com/location: asia-south2
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '10'
+    spec:
+      containerConcurrency: 80
+      containers:
+      - image: asia-south2-docker.pkg.dev/reflexa-498615/cloud-run-source-deploy/reflexa:latest
+        resources:
+          limits:
+            cpu: '1000m'
+            memory: '1Gi'
+        env:
+        # Standard Environment Variables
+        - name: FRONTEND_ORIGIN
+          value: 'https://reflexa-frontend.vercel.app'
+        - name: PHOENIX_PROJECT_NAME
+          value: 'reflexa'
+        - name: PHOENIX_MCP_ENABLED
+          value: 'true'
+        
+        # Secret Manager Secrets
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: GOOGLE_API_KEY
+              key: latest
+        - name: PHOENIX_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: PHOENIX_API_KEY
+              key: latest
+        - name: PHOENIX_COLLECTOR_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: PHOENIX_COLLECTOR_ENDPOINT
+              key: latest
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: SUPABASE_URL
+              key: latest
+        - name: SUPABASE_SERVICE_ROLE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: SUPABASE_SERVICE_ROLE_KEY
+              key: latest

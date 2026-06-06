@@ -1,0 +1,27 @@
+steps:
+  # 1. Build the container image from the Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'asia-south2-docker.pkg.dev/reflexa-498615/cloud-run-source-deploy/reflexa:latest'
+      - '.'
+
+  # 2. Push the container image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - 'asia-south2-docker.pkg.dev/reflexa-498615/cloud-run-source-deploy/reflexa:latest'
+
+  # 3. Deploy the container image to Cloud Run using service.yaml
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'services'
+      - 'replace'
+      - 'service.yaml'
+      - '--region=asia-south2'
+
+images:
+  - 'asia-south2-docker.pkg.dev/reflexa-498615/cloud-run-source-deploy/reflexa:latest'

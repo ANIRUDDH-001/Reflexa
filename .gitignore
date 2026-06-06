@@ -34,5 +34,6 @@ docs/*_BLUEPRINT.md
 docs/*_PLAN.md
 docs/INTERNAL_*.md
 docs/DRAFT_*.md
+docs/deploy-gcp.md
 e2e.mjs
 smoke-test.mjs
