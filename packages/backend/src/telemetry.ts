@@ -2,10 +2,9 @@ import { MCPInstrumentation } from '@arizeai/openinference-instrumentation-mcp';
 import { SEMRESATTRS_PROJECT_NAME } from '@arizeai/openinference-semantic-conventions';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
-import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+// Express and HTTP instrumentations removed to prevent Cloud Run orphan span issues
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
@@ -57,7 +56,7 @@ export function initializeTelemetry(): void {
       [SEMRESATTRS_PROJECT_NAME]: projectName,
     }),
     spanProcessors: [
-      new SimpleSpanProcessor(
+      new BatchSpanProcessor(
         new OTLPTraceExporter({
           url: getCollectorEndpoint(),
           headers: {
@@ -73,11 +72,7 @@ export function initializeTelemetry(): void {
 
   registerInstrumentations({
     tracerProvider: provider,
-    instrumentations: [
-      new HttpInstrumentation(),
-      new ExpressInstrumentation(),
-      new MCPInstrumentation(),
-    ],
+    instrumentations: [new MCPInstrumentation()],
   });
 
   telemetryEnabled = true;
@@ -108,4 +103,13 @@ export async function shutdownTelemetry(): Promise<void> {
   provider = null;
   telemetryEnabled = false;
   telemetryInitialized = false;
+}
+
+export async function forceFlushTelemetry(): Promise<void> {
+  if (telemetryEnabled && provider) {
+    await provider.forceFlush().catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error(err);
+    });
+  }
 }

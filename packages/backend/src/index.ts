@@ -1,6 +1,6 @@
 import 'dotenv/config';
 // eslint-disable-next-line import/order
-import { initializeTelemetry, shutdownTelemetry } from './telemetry';
+import { initializeTelemetry, shutdownTelemetry, forceFlushTelemetry } from './telemetry';
 initializeTelemetry();
 import { randomUUID } from 'crypto';
 import { APIContracts } from '@reflexa/shared';
@@ -402,6 +402,7 @@ app.post('/session/:id/turn', async (req: Request, res: Response) => {
         .json({ error: 'contract mismatch', details: parsedRes.error.format() });
     }
 
+    await forceFlushTelemetry();
     return res.json(responsePayload);
   } catch (error: unknown) {
     logger.error({ err: error }, 'Failed to process turn');
@@ -546,6 +547,7 @@ app.post('/session/:id/turn/stream', async (req: Request, res: Response) => {
     }
   } finally {
     clearInterval(heartbeat);
+    await forceFlushTelemetry();
     if (!res.writableEnded) {
       res.write('data: [DONE]\n\n');
       res.end();
@@ -688,6 +690,7 @@ app.post('/session/:id/end', async (req: Request, res: Response) => {
       }).catch((err) => logger.error({ err }, 'Failed to log eval to Arize'));
     }
 
+    await forceFlushTelemetry();
     return res.json(responsePayload);
   } catch (error: unknown) {
     logger.error({ err: error }, 'Failed to generate evaluation');
