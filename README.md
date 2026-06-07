@@ -180,12 +180,22 @@ pnpm run lint
 
 ## Deployment
 
-Reflexa uses Google Cloud Run for backend deployment. A complete step-by-step guide is provided in **[docs/deploy-gcp.md](./docs/deploy-gcp.md)**.
+Reflexa uses Google Cloud Run for the backend and Firebase Hosting for the frontend.
+
+### Backend (Cloud Run)
 
 To automate deployment via Google Cloud Build:
 
-1. Configure Secret Manager with your environment variables.
-2. Run `gcloud builds submit --config cloudbuild.yaml .`
+1. Configure Google Cloud Secret Manager with your environment variables (`GOOGLE_API_KEY`, `ARIZE_API_KEY`, `ARIZE_SPACE_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
+2. Run the build command from the repository root:
+   ```bash
+   gcloud builds submit --config cloudbuild.yaml .
+   ```
+
+### Frontend (Firebase)
+
+1. Build the Vite app: `cd packages/frontend && pnpm build`
+2. Deploy via Firebase CLI: `firebase deploy --only hosting`
 
 ## Project Structure
 
