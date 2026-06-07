@@ -5,7 +5,7 @@ import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { shutdownMcpClient } from './engine/mcp';
@@ -57,7 +57,7 @@ export function initializeTelemetry(): void {
       [SEMRESATTRS_PROJECT_NAME]: projectName,
     }),
     spanProcessors: [
-      new BatchSpanProcessor(
+      new SimpleSpanProcessor(
         new OTLPTraceExporter({
           url: getCollectorEndpoint(),
           headers: {

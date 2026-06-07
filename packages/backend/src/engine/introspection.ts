@@ -2,7 +2,7 @@ import { SemanticConventions } from '@arizeai/openinference-semantic-conventions
 import { GoogleGenAI } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import pino from 'pino';
-import { getGoogleApiKey } from './llm';
+import { getGoogleApiKey, ANALYSIS_MODELS } from './llm';
 import { getMcpToolsAsGemini, callMcpTool } from './mcp';
 
 const logger = pino();
@@ -73,7 +73,7 @@ Example newRules:
         let result: StrategyUpdateResult | null = null;
         let lastError: Error | null = null;
 
-        for (const modelId of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+        for (const modelId of ANALYSIS_MODELS) {
           try {
             const chat = ai.chats.create({
               model: modelId,

@@ -273,7 +273,7 @@ export async function renderInterview(
             aiBubble.innerHTML = `
               <div class="message__avatar"><i data-lucide="bot"></i></div>
               <div class="message__content">
-                <div class="message__bubble" id="streaming-bubble-text"></div>
+                <div class="message__bubble prose prose-sm max-w-none" id="streaming-bubble-text"></div>
               </div>
             `;
             messagesContainer.appendChild(aiBubble);
@@ -282,15 +282,21 @@ export async function renderInterview(
           }
           fullText += event.text;
           const bubbleText = aiBubble?.querySelector('#streaming-bubble-text');
-          if (bubbleText) bubbleText.textContent = fullText;
+          if (bubbleText) {
+            const parsedHTML = await marked.parse(fullText);
+            bubbleText.innerHTML = sanitiseHtml(parsedHTML);
+          }
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } else if (event.type === 'done') {
           // Finalise: remove the temp streaming ID, push to messages array
+          fullText = event.fullText || fullText; // Use the exact complete text from backend
           if (aiBubble) {
             const textEl = aiBubble.querySelector('#streaming-bubble-text');
-            if (textEl) textEl.removeAttribute('id');
-
-            // Removed Phoenix trace link appendage
+            if (textEl) {
+              const finalHTML = await marked.parse(fullText);
+              textEl.innerHTML = sanitiseHtml(finalHTML);
+              textEl.removeAttribute('id');
+            }
           }
 
           messages.push({

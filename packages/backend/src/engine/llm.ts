@@ -39,14 +39,24 @@ function buildConversationHistory(
   const recentContext = mergedHistory.slice(-(MAX_HISTORY_TURNS * 2 - 2));
   return [...introContext, ...recentContext];
 }
-export const MODELS = [
-  'gemini-2.5-flash',
+export const CHAT_MODELS = [
+  'gemini-3-flash-preview',
   'gemini-3.5-flash',
-  'gemini-3.0-flash',
+  'gemini-2.5-flash',
   'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
-  'gemma-4-31b',
-  'gemma-4-26b',
+  'gemma-4-31b-it',
+  'gemma-4-26b-a4b-it',
+];
+
+export const ANALYSIS_MODELS = [
+  'gemma-4-31b-it',
+  'gemma-4-26b-a4b-it',
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
 ];
 
 export function getGoogleApiKey(): string {
@@ -154,7 +164,7 @@ export async function processTurn(
         // Build history from trace, excluding the latest message which will be passed to sendMessage
         const history = buildConversationHistory((state.trace || []).slice(0, -1));
 
-        for (const model of MODELS) {
+        for (const model of CHAT_MODELS) {
           try {
             return await tracer.startActiveSpan(
               'gemini_chat',
@@ -296,7 +306,7 @@ export async function* processTurnStream(
 
   try {
     yield* context.with(agentContext, async function* (): AsyncGenerator<TurnStreamChunk> {
-      for (const modelId of MODELS) {
+      for (const modelId of CHAT_MODELS) {
         const llmSpan = tracer.startSpan(
           'gemini_chat_stream',
           {
@@ -864,7 +874,7 @@ export async function generateEvaluation(
           `\nFor opportunityCoverage: score 100 if the interviewer captured and pursued all significant follow-up threads. ` +
           `Score 0 if they let many opportunities pass.`;
 
-        for (const model of MODELS) {
+        for (const model of ANALYSIS_MODELS) {
           try {
             return await tracer.startActiveSpan(
               'gemini_eval',

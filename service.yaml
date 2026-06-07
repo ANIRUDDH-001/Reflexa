@@ -21,7 +21,7 @@ spec:
         env:
         # Standard Environment Variables
         - name: FRONTEND_ORIGIN
-          value: 'https://reflexa-frontend.vercel.app'
+          value: 'https://reflexa-498615.web.app,https://reflexa-498615.firebaseapp.com'
         - name: ARIZE_PROJECT_NAME
           value: 'reflexa'
         - name: ARIZE_MCP_ENABLED

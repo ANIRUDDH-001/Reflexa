@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { trace } from '@opentelemetry/api';
 import pino from 'pino';
 import { BackendSessionState } from '../state/types';
-import { getGoogleApiKey } from './llm';
+import { getGoogleApiKey, ANALYSIS_MODELS } from './llm';
 
 const logger = pino();
 const tracer = trace.getTracer('reflexa-study-plan');
@@ -27,7 +27,6 @@ export async function generateStudyPlan(session: BackendSessionState): Promise<s
           throw new Error('Cannot generate study plan without a prior evaluation.');
         }
 
-        const modelId = 'gemini-2.5-flash';
         const role = session.config.role || 'Software Engineer';
         const difficulty = session.config.difficulty || 'Mid-Level';
 
@@ -63,18 +62,30 @@ Brief encouraging opening sentence.
 
 Do not include any JSON wrapping, just raw Markdown text.`;
 
-        const response = await ai.models.generateContent({
-          model: modelId,
-          contents: prompt,
-          config: {
-            temperature: 0.4,
-          },
-        });
+        let responseText = '';
+        let lastError: Error | null = null;
+        for (const modelId of ANALYSIS_MODELS) {
+          try {
+            const response = await ai.models.generateContent({
+              model: modelId,
+              contents: prompt,
+              config: {
+                temperature: 0.4,
+              },
+            });
+            responseText = response.text || '';
+            if (responseText) break;
+          } catch (err) {
+            lastError = err as Error;
+            logger.warn({ err, modelId }, '[studyPlan] Model attempt failed, trying next...');
+          }
+        }
 
-        const text = response.text || '';
-        span.setAttribute('studyPlan.length', text.length);
+        if (!responseText && lastError) throw lastError;
+
+        span.setAttribute('studyPlan.length', responseText.length);
         span.end();
-        return text;
+        return responseText;
       } catch (err) {
         span.recordException(err as Error);
         span.end();
