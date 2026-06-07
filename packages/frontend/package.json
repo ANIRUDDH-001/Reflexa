@@ -9,7 +9,7 @@
     "start": "serve -s dist"
   },
   "dependencies": {
-    "@reflexa/shared": "file:../shared",
+    "@reflexa/shared": "workspace:*",
     "@supabase/supabase-js": "^2.106.2",
     "chart.js": "^4.5.1",
     "firebase": "^12.14.0",
