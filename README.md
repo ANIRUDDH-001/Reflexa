@@ -19,6 +19,12 @@
 
 Reflexa is an AI-powered interview preparation platform that continuously learns from every session to deliver sharper questions, more targeted feedback, and measurable improvement over time. It combines a Gemini-backed interview engine with an introspection agent that identifies failure patterns and rewrites its own strategy rules—so each session is smarter than the last.
 
+### Key Technical Achievements
+
+- **Adaptive LLM Routing:** Uses Gemini models for real-time chat (with Gemma fallback) and Gemma models for heavy analysis tasks (with Gemini fallback) to ensure 100% uptime and gracefully handle rate limits.
+- **Serverless OpenTelemetry:** Implements manual trace flushing to bypass Cloud Run's aggressive CPU throttling, ensuring zero orphaned spans in Arize Phoenix.
+- **Robust Cloud Stack:** Firebase Hosting for the lightning-fast frontend, Supabase for authentication and PostgreSQL state, and Google Cloud Run for serverless backend deployment.
+
 ## Architecture
 
 ```mermaid
@@ -66,16 +72,16 @@ Reflexa is a monorepo with three packages:
 
 ## Tech Stack
 
-| Layer            | Technology                                |
-| ---------------- | ----------------------------------------- |
-| AI Model         | Google Gemini 2.5 Pro + 2.5 Flash         |
-| AI Observability | Arize Phoenix Cloud (OpenTelemetry + MCP) |
-| Backend          | Express 5, TypeScript, Node.js 22         |
-| Database         | Supabase PostgreSQL                       |
-| Auth             | Supabase OAuth (Google Sign-In)           |
-| Frontend         | Vanilla TypeScript, Vite 6, Tailwind CSS  |
-| Instrumentation  | OpenInference + `@arizeai/phoenix-otel`   |
-| Deployment       | Cloud Run (backend), Vercel (frontend)    |
+| Layer            | Technology                                       |
+| ---------------- | ------------------------------------------------ |
+| AI Model         | Gemini 2.5 / Gemma (Adaptive Fallbacks)          |
+| AI Observability | Arize Phoenix Cloud (OpenTelemetry + MCP)        |
+| Backend          | Express 5, TypeScript, Node.js 22                |
+| Database         | Supabase PostgreSQL                              |
+| Auth             | Supabase OAuth (Google Sign-In)                  |
+| Frontend         | Vanilla TypeScript, Vite 6, Tailwind CSS         |
+| Instrumentation  | OpenInference + `@arizeai/phoenix-otel`          |
+| Deployment       | Cloud Run (backend), Firebase Hosting (frontend) |
 
 ## Getting Started
 
@@ -83,7 +89,8 @@ Reflexa is a monorepo with three packages:
 
 - Node.js 22+
 - pnpm 9+
-- A [Supabase](https://supabase.com) project (free tier works)
+- A [Firebase](https://firebase.google.com/) project for Frontend Hosting
+- A [Supabase](https://supabase.com) project for PostgreSQL Database and Auth
 - An [Arize Phoenix Cloud](https://app.phoenix.arize.com) account (free tier works)
 - A [Google AI Studio](https://aistudio.google.com) API key
 
