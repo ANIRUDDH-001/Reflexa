@@ -23,7 +23,7 @@ jobs:
       - name: Build shared first
         run: pnpm --filter @reflexa/shared build
       - name: Typecheck (root project refs)
-        run: pnpm -w -r run typecheck
+        run: pnpm run typecheck
       - name: Lint (root)
         run: pnpm -w run lint
       - name: Run tests

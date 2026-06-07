@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "zod": "^3.0.0"
