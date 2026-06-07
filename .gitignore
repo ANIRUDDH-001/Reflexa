@@ -9,6 +9,7 @@ packages/*/node_modules
 # Environment variables — never commit
 .env
 *.env
+.env.*
 !.env.example
 
 # SQLite artifacts (legacy — no longer used)
