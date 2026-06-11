@@ -1,6 +1,7 @@
 # Reflexa — Self-Improving AI Interview Agent
 
-[![Demo Video](https://img.shields.io/badge/Demo-Watch%20on%20YouTube-red)](https://youtu.be/PLACEHOLDER)
+[![Live Demo](https://img.shields.io/badge/Demo-Live%20App-brightgreen)](https://reflexa-498615.web.app)
+[![Demo Video](https://img.shields.io/badge/Demo-Watch%20on%20YouTube-red)](https://youtu.be/NxegxsgK5Cc)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 <p align="center">
