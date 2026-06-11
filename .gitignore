@@ -41,3 +41,6 @@ smoke-test.mjs
 
 # TypeScript build artifacts
 *.tsbuildinfo
+
+# Supabase temp files
+supabase/.temp/
