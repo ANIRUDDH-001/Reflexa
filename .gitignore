@@ -38,3 +38,6 @@ docs/DRAFT_*.md
 docs/deploy-gcp.md
 e2e.mjs
 smoke-test.mjs
+
+# TypeScript build artifacts
+*.tsbuildinfo
